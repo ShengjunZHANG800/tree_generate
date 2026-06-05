@@ -459,6 +459,14 @@ button:disabled {
   min-width: 0;
 }
 
+.smalln-analysis-controls button {
+  height: 38px;
+}
+
+.smalln-analysis-controls .smalln-theta-compare-control input {
+  height: 38px;
+}
+
 .smalln-shape-wrap {
   height: 360px;
   max-height: none;

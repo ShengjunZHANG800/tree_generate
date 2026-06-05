@@ -106,6 +106,11 @@ async function main() {
     if (divergenceCards < 4) throw new Error("Small-n divergence overview did not render cards.");
     const divergenceText = await page.locator("#smalln-divergence").textContent();
     if (!divergenceText.includes("TV distance")) throw new Error("Small-n divergence overview did not render the TV distance card.");
+    await page.fill("#smalln-compare-theta", "1");
+    await page.click("#smalln-compare-theta-run");
+    await page.waitForFunction(() => document.querySelector("#smalln-diff-summary")?.textContent.includes("theta 2 - theta 1"), null, { timeout: 30000 });
+    const thetaCompareText = await page.locator("#smalln-divergence").textContent();
+    if (!thetaCompareText.includes("Ewens theta 2 - theta 1")) throw new Error("Small-n theta comparison did not update the divergence overview.");
 
     await page.click("#tab-lab");
     await page.check('input[name="scan-model"][value="uniform_recursive"]');

@@ -34,6 +34,7 @@ const state = {
   smallNDiffTarget: "shape",
   smallNDiffModelA: "plancherel_recursive",
   smallNDiffModelB: "ewens",
+  smallNThetaComparison: null,
   smallNVisibleLimit: 2000,
   freeThetaValue: "2",
   language: "en",
@@ -222,6 +223,10 @@ const I18N = {
     smallNDiffA: "A",
     smallNDiffB: "B",
     smallNDiffSummary: "largest absolute shifts for {target}: {modelA} - {modelB}",
+    smallNDiffThetaSummary: "Ewens theta comparison for {target}: theta {thetaA} - theta {thetaB}",
+    smallNThetaB: "theta B",
+    smallNCompareTheta: "Compare theta",
+    smallNThetaComparisonDone: "Compared Ewens theta {thetaA} vs {thetaB}",
     smallNDivergenceTv: "TV distance ({target})",
     smallNDivergenceMaxShift: "largest |A - B|",
     smallNDivergenceMeanGap: "mean height A - B",
@@ -479,6 +484,10 @@ const I18N = {
     smallNDiffA: "A",
     smallNDiffB: "B",
     smallNDiffSummary: "{target} 的最大绝对变化：{modelA} - {modelB}",
+    smallNDiffThetaSummary: "{target} 的 Ewens theta 对照：theta {thetaA} - theta {thetaB}",
+    smallNThetaB: "theta B",
+    smallNCompareTheta: "比较 theta",
+    smallNThetaComparisonDone: "已比较 Ewens theta {thetaA} 与 {thetaB}",
     smallNDivergenceTv: "TV 距离（{target}）",
     smallNDivergenceMaxShift: "最大 |A - B|",
     smallNDivergenceMeanGap: "平均高度 A - B",
@@ -2803,12 +2812,23 @@ function smallNRowLinkAttributes(row, target) {
   return `data-smalln-shape-signature="${escapeHtml(row.shape_signature)}" data-smalln-shape-rank="${row.representative_rank}"`;
 }
 
+function smallNProbabilityPair(row, modelA, modelB) {
+  const aFraction = row.compare_a_fraction
+    ? parseFractionLabel(row.compare_a_fraction)
+    : parseFractionLabel(row.probability_fractions?.[modelA]);
+  const bFraction = row.compare_b_fraction
+    ? parseFractionLabel(row.compare_b_fraction)
+    : parseFractionLabel(row.probability_fractions?.[modelB]);
+  const aValue = row.compare_a_probability ?? row.probabilities?.[modelA] ?? fractionToNumber(aFraction);
+  const bValue = row.compare_b_probability ?? row.probabilities?.[modelB] ?? fractionToNumber(bFraction);
+  return { aFraction, bFraction, aValue, bValue };
+}
+
 function smallNLargestShift(source, modelA, modelB) {
   return source
     .map((row) => {
-      const a = parseFractionLabel(row.probability_fractions?.[modelA]);
-      const b = parseFractionLabel(row.probability_fractions?.[modelB]);
-      const diff = subtractFractions(a, b);
+      const { aFraction, bFraction } = smallNProbabilityPair(row, modelA, modelB);
+      const diff = subtractFractions(aFraction, bFraction);
       return { row, diff, diffValue: fractionToNumber(diff) };
     })
     .sort((a, b) => Math.abs(b.diffValue) - Math.abs(a.diffValue) || (a.row.rank ?? a.row.representative_rank) - (b.row.rank ?? b.row.representative_rank))[0] || null;
@@ -2816,11 +2836,56 @@ function smallNLargestShift(source, modelA, modelB) {
 
 function smallNTotalVariation(source, modelA, modelB) {
   const total = source.reduce((sum, row) => {
-    const a = row.probabilities?.[modelA] ?? 0;
-    const b = row.probabilities?.[modelB] ?? 0;
+    const { aValue: a, bValue: b } = smallNProbabilityPair(row, modelA, modelB);
     return sum + Math.abs(a - b);
   }, 0);
   return total / 2;
+}
+
+function activeSmallNComparison() {
+  return state.smallNThetaComparison?.data ? state.smallNThetaComparison : null;
+}
+
+function smallNComparisonLabels(modelA, modelB) {
+  const thetaComparison = activeSmallNComparison();
+  if (thetaComparison) {
+    return {
+      a: `Ewens theta ${fmt.format(thetaComparison.thetaA)}`,
+      b: `Ewens theta ${fmt.format(thetaComparison.thetaB)}`,
+      selected: `Ewens theta ${fmt.format(thetaComparison.thetaA)} - theta ${fmt.format(thetaComparison.thetaB)}`,
+    };
+  }
+  return {
+    a: modelLabel(modelA),
+    b: modelLabel(modelB),
+    selected: `${modelLabel(modelA)} - ${modelLabel(modelB)}`,
+  };
+}
+
+function smallNComparisonSource(target) {
+  const data = state.lastSmallN;
+  const thetaComparison = activeSmallNComparison();
+  if (!data) return [];
+  const source = target === "tree" ? data.rows : data.shape_groups || [];
+  if (!thetaComparison) return source;
+  const otherRows = target === "tree" ? thetaComparison.data.rows : thetaComparison.data.shape_groups || [];
+  const keyFor = target === "tree"
+    ? (row) => String(row.rank)
+    : (row) => row.shape_signature;
+  const otherByKey = new Map(otherRows.map((row) => [keyFor(row), row]));
+  return source
+    .map((row) => {
+      const other = otherByKey.get(keyFor(row));
+      if (!other) return null;
+      return {
+        ...row,
+        compare_a_fraction: row.probability_fractions?.ewens,
+        compare_a_probability: row.probabilities?.ewens,
+        compare_b_fraction: other.probability_fractions?.ewens,
+        compare_b_probability: other.probabilities?.ewens,
+      };
+    })
+    .filter(Boolean);
 }
 
 function renderSmallNDivergence() {
@@ -2832,15 +2897,19 @@ function renderSmallNDivergence() {
   const target = state.smallNDiffTarget || "shape";
   const modelA = state.smallNDiffModelA || "plancherel_recursive";
   const modelB = state.smallNDiffModelB || "ewens";
-  const source = target === "tree" ? data.rows : data.shape_groups || [];
+  const source = smallNComparisonSource(target);
+  const labels = smallNComparisonLabels(modelA, modelB);
   const largest = smallNLargestShift(source, modelA, modelB);
   const tv = smallNTotalVariation(source, modelA, modelB);
-  const meanGap = (data.aggregate?.[modelA]?.mean_height ?? 0) - (data.aggregate?.[modelB]?.mean_height ?? 0);
+  const thetaComparison = activeSmallNComparison();
+  const meanGap = thetaComparison
+    ? (data.aggregate?.ewens?.mean_height ?? 0) - (thetaComparison.data.aggregate?.ewens?.mean_height ?? 0)
+    : (data.aggregate?.[modelA]?.mean_height ?? 0) - (data.aggregate?.[modelB]?.mean_height ?? 0);
   const largestLabel = largest
     ? `${signedNumberLabel(largest.diffValue)}; ${smallNItemLabel(largest.row, target)}`
     : "-";
   el("smalln-divergence").innerHTML = [
-    smallNCard(t("smallNDivergenceSelected"), `${modelLabel(modelA)} - ${modelLabel(modelB)}`),
+    smallNCard(t("smallNDivergenceSelected"), labels.selected),
     smallNCard(t("smallNDivergenceTv", { target: smallNTargetLabel(target) }), fmt.format(tv)),
     smallNCard(t("smallNDivergenceMaxShift"), largestLabel),
     smallNCard(t("smallNDivergenceMeanGap"), signedNumberLabel(meanGap)),
@@ -2889,31 +2958,38 @@ function renderSmallNDifference() {
   const target = state.smallNDiffTarget || "shape";
   const modelA = state.smallNDiffModelA || "plancherel_recursive";
   const modelB = state.smallNDiffModelB || "ewens";
-  const source = target === "tree" ? data.rows : data.shape_groups || [];
+  const source = smallNComparisonSource(target);
+  const labels = smallNComparisonLabels(modelA, modelB);
   const rows = [...source]
     .map((row) => {
-      const a = parseFractionLabel(row.probability_fractions?.[modelA]);
-      const b = parseFractionLabel(row.probability_fractions?.[modelB]);
-      const diff = subtractFractions(a, b);
-      return { row, a, b, diff, diffValue: fractionToNumber(diff) };
+      const { aFraction, bFraction, aValue, bValue } = smallNProbabilityPair(row, modelA, modelB);
+      const diff = subtractFractions(aFraction, bFraction);
+      return { row, aFraction, bFraction, aValue, bValue, diff, diffValue: fractionToNumber(diff) };
     })
     .sort((a, b) => Math.abs(b.diffValue) - Math.abs(a.diffValue) || (a.row.rank ?? a.row.representative_rank) - (b.row.rank ?? b.row.representative_rank))
     .slice(0, 12);
-  el("smalln-diff-summary").textContent = t("smallNDiffSummary", {
-    target: smallNTargetLabel(target),
-    modelA: modelLabel(modelA),
-    modelB: modelLabel(modelB),
-  });
+  const thetaComparison = activeSmallNComparison();
+  el("smalln-diff-summary").textContent = thetaComparison
+    ? t("smallNDiffThetaSummary", {
+      target: smallNTargetLabel(target),
+      thetaA: fmt.format(thetaComparison.thetaA),
+      thetaB: fmt.format(thetaComparison.thetaB),
+    })
+    : t("smallNDiffSummary", {
+      target: smallNTargetLabel(target),
+      modelA: labels.a,
+      modelB: labels.b,
+    });
   el("smalln-diff-table").innerHTML = rows
-    .map(({ row, diff, diffValue }, index) => {
+    .map(({ row, aFraction, bFraction, aValue, bValue, diff, diffValue }, index) => {
       const item = smallNItemLabel(row, target);
       const rankAttr = smallNRowLinkAttributes(row, target);
       const direction = diffValue > 0 ? "+" : "";
       return `<tr ${rankAttr}>
         <td>${index + 1}</td>
         <td><span class="shape-signature" title="${escapeHtml(item)}">${escapeHtml(item)}</span></td>
-        <td class="probability-cell">${smallNProbabilityHtml(row.probability_fractions?.[modelA] ?? "-", row.probabilities?.[modelA] ?? 0)}</td>
-        <td class="probability-cell">${smallNProbabilityHtml(row.probability_fractions?.[modelB] ?? "-", row.probabilities?.[modelB] ?? 0)}</td>
+        <td class="probability-cell">${smallNProbabilityHtml(fractionToLabel(aFraction), aValue)}</td>
+        <td class="probability-cell">${smallNProbabilityHtml(fractionToLabel(bFraction), bValue)}</td>
         <td class="probability-cell">${smallNProbabilityHtml(fractionToLabel(diff), diffValue, { sign: direction })}</td>
       </tr>`;
     })
@@ -3097,6 +3173,12 @@ function renderSmallNPreview(row) {
 
 function renderSmallN(data, options = {}) {
   state.lastSmallN = data;
+  if (state.smallNThetaComparison && (
+    state.smallNThetaComparison.n !== data.parameters.n
+      || state.smallNThetaComparison.thetaA !== data.parameters.theta
+  )) {
+    state.smallNThetaComparison = null;
+  }
   state.smallNRowsByRank = new Map(data.rows.map((row) => [row.rank, row]));
   state.smallNRowsByCode = new Map(data.rows.map((row) => [row.code, row]));
   state.smallNGroupsBySignature = new Map((data.shape_groups || []).map((group) => [group.shape_signature, group]));
@@ -3143,6 +3225,40 @@ async function runSmallNExplorer() {
     const data = await runTask("/api/tasks/small-n", payload);
     renderSmallN(data, { resetFilters: false });
     setStatusMessage("statusSmallNDone", { count: fmt.format(data.rows.length) });
+  } catch (error) {
+    setStatusMessage(error.cancelled ? "statusTaskCancelled" : "error", { message: error.message });
+  } finally {
+    toggleButtons(false);
+    refreshSmallNTableControlState();
+  }
+}
+
+async function runSmallNThetaComparison() {
+  if (!state.lastSmallN) {
+    await runSmallNExplorer();
+  }
+  const current = state.lastSmallN;
+  if (!current) return;
+  toggleButtons(true);
+  try {
+    const payload = {
+      n: current.parameters.n,
+      theta: numberValue("smalln-compare-theta"),
+    };
+    const data = await runTask("/api/tasks/small-n", payload);
+    state.smallNThetaComparison = {
+      n: current.parameters.n,
+      thetaA: current.parameters.theta,
+      thetaB: data.parameters.theta,
+      data,
+    };
+    renderSmallNDifference();
+    renderSmallNDivergence();
+    saveSmallNState();
+    setStatusMessage("smallNThetaComparisonDone", {
+      thetaA: fmt.format(current.parameters.theta),
+      thetaB: fmt.format(data.parameters.theta),
+    });
   } catch (error) {
     setStatusMessage(error.cancelled ? "statusTaskCancelled" : "error", { message: error.message });
   } finally {
@@ -3246,6 +3362,7 @@ function loadSmallNState() {
     if (!saved || typeof saved !== "object") return;
     if (saved.n != null) el("smalln-n").value = saved.n;
     if (saved.theta != null) el("smalln-theta").value = saved.theta;
+    if (saved.compareTheta != null) el("smalln-compare-theta").value = saved.compareTheta;
     if (saved.sort) {
       state.smallNSort = saved.sort;
       el("smalln-sort").value = saved.sort;
@@ -3304,6 +3421,7 @@ function saveSmallNState() {
     localStorage.setItem(SMALL_N_STATE_STORAGE_KEY, JSON.stringify({
       n: el("smalln-n").value,
       theta: el("smalln-theta").value,
+      compareTheta: el("smalln-compare-theta").value,
       sort: state.smallNSort,
       searchType: state.smallNSearchType,
       searchValue: el("smalln-locate-code").value,
@@ -3762,11 +3880,20 @@ async function init() {
       if (id === "smalln-diff-target") state.smallNDiffTarget = event.target.value;
       if (id === "smalln-diff-model-a") state.smallNDiffModelA = event.target.value;
       if (id === "smalln-diff-model-b") state.smallNDiffModelB = event.target.value;
+      if (id !== "smalln-diff-target") state.smallNThetaComparison = null;
       renderSmallNDifference();
       renderSmallNDivergence();
       saveSmallNState();
     });
   }
+  el("smalln-compare-theta").addEventListener("input", saveSmallNState);
+  el("smalln-compare-theta").addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      runSmallNThetaComparison();
+    }
+  });
+  el("smalln-compare-theta-run").addEventListener("click", runSmallNThetaComparison);
   el("smalln-view").addEventListener("click", (event) => {
     const topKRow = event.target.closest("#smalln-topk-table tr");
     if (topKRow) {
