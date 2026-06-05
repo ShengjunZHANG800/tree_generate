@@ -822,6 +822,16 @@ button:disabled {
   white-space: nowrap;
 }
 
+.smalln-divergence {
+  grid-template-columns: repeat(4, minmax(150px, 1fr));
+  margin-top: -4px;
+}
+
+.smalln-divergence .scan-analysis-card {
+  border-color: #cfe0e4;
+  background: #f8fbfc;
+}
+
 .scan-grid {
   display: grid;
   grid-template-columns: minmax(320px, 0.9fr) minmax(420px, 1.1fr);

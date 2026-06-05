@@ -51,6 +51,11 @@ async function main() {
     const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
     await page.goto(baseUrl);
     await page.waitForSelector("#metrics-grid .metric-card", { timeout: 20000 });
+    await page.click("#lang-zh");
+    await page.waitForFunction(() => document.querySelector("#tab-lab")?.textContent.includes("树实验"), null, { timeout: 10000 });
+    const zhButton = await page.locator("#lang-zh").textContent();
+    if (!zhButton.includes("中文")) throw new Error("Chinese language button text is corrupted.");
+    await page.click("#lang-en");
     await page.fill("#n", "160");
     await page.fill("#draw-limit", "160");
     await page.click("#generate-button");
@@ -75,6 +80,10 @@ async function main() {
     await page.waitForSelector("#smalln-diff-table tr", { timeout: 20000 });
     const diffRows = await page.locator("#smalln-diff-table tr").count();
     if (diffRows < 1) throw new Error("Small-n difference table did not render rows.");
+    const divergenceCards = await page.locator("#smalln-divergence .scan-analysis-card").count();
+    if (divergenceCards < 4) throw new Error("Small-n divergence overview did not render cards.");
+    const divergenceText = await page.locator("#smalln-divergence").textContent();
+    if (!divergenceText.includes("TV distance")) throw new Error("Small-n divergence overview did not render the TV distance card.");
 
     await page.click("#tab-lab");
     await page.check('input[name="scan-model"][value="uniform_recursive"]');

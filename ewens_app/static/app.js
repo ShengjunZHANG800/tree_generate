@@ -218,6 +218,10 @@ const I18N = {
     smallNDiffA: "A",
     smallNDiffB: "B",
     smallNDiffSummary: "largest absolute shifts for {target}: {modelA} - {modelB}",
+    smallNDivergenceTv: "TV distance ({target})",
+    smallNDivergenceMaxShift: "largest |A - B|",
+    smallNDivergenceMeanGap: "mean height A - B",
+    smallNDivergenceSelected: "selected comparison",
     smallNDiffEwensUniform: "Ewens / Uniform",
     smallNDiffPlancherelUniform: "Plancherel / Uniform",
     smallNDiffPlancherelEwens: "Plancherel - Ewens",
@@ -468,6 +472,10 @@ const I18N = {
     smallNDiffA: "A",
     smallNDiffB: "B",
     smallNDiffSummary: "{target} 的最大绝对变化：{modelA} - {modelB}",
+    smallNDivergenceTv: "TV 距离（{target}）",
+    smallNDivergenceMaxShift: "最大 |A - B|",
+    smallNDivergenceMeanGap: "平均高度 A - B",
+    smallNDivergenceSelected: "当前比较",
     smallNDiffEwensUniform: "Ewens / Uniform",
     smallNDiffPlancherelUniform: "Plancherel / Uniform",
     smallNDiffPlancherelEwens: "Plancherel - Ewens",
@@ -2714,6 +2722,69 @@ function fractionToNumber(value) {
   return Number(value.numerator) / Number(value.denominator);
 }
 
+function signedNumberLabel(value) {
+  if (!Number.isFinite(value)) return "-";
+  return `${value > 0 ? "+" : ""}${fmt.format(value)}`;
+}
+
+function smallNTargetLabel(target) {
+  return target === "tree" ? t("smallNTopKTree") : t("smallNTopKShape");
+}
+
+function smallNItemLabel(row, target) {
+  if (target === "tree") return `#${row.rank}; ${row.code || t("valueRoot")}`;
+  return `${row.shape_signature} (#${row.representative_rank})`;
+}
+
+function smallNRowLinkAttributes(row, target) {
+  if (target === "tree") return `data-smalln-rank="${row.rank}"`;
+  return `data-smalln-shape-signature="${escapeHtml(row.shape_signature)}" data-smalln-shape-rank="${row.representative_rank}"`;
+}
+
+function smallNLargestShift(source, modelA, modelB) {
+  return source
+    .map((row) => {
+      const a = parseFractionLabel(row.probability_fractions?.[modelA]);
+      const b = parseFractionLabel(row.probability_fractions?.[modelB]);
+      const diff = subtractFractions(a, b);
+      return { row, diff, diffValue: fractionToNumber(diff) };
+    })
+    .sort((a, b) => Math.abs(b.diffValue) - Math.abs(a.diffValue) || (a.row.rank ?? a.row.representative_rank) - (b.row.rank ?? b.row.representative_rank))[0] || null;
+}
+
+function smallNTotalVariation(source, modelA, modelB) {
+  const total = source.reduce((sum, row) => {
+    const a = row.probabilities?.[modelA] ?? 0;
+    const b = row.probabilities?.[modelB] ?? 0;
+    return sum + Math.abs(a - b);
+  }, 0);
+  return total / 2;
+}
+
+function renderSmallNDivergence() {
+  const data = state.lastSmallN;
+  if (!data) {
+    el("smalln-divergence").innerHTML = "";
+    return;
+  }
+  const target = state.smallNDiffTarget || "shape";
+  const modelA = state.smallNDiffModelA || "plancherel_recursive";
+  const modelB = state.smallNDiffModelB || "ewens";
+  const source = target === "tree" ? data.rows : data.shape_groups || [];
+  const largest = smallNLargestShift(source, modelA, modelB);
+  const tv = smallNTotalVariation(source, modelA, modelB);
+  const meanGap = (data.aggregate?.[modelA]?.mean_height ?? 0) - (data.aggregate?.[modelB]?.mean_height ?? 0);
+  const largestLabel = largest
+    ? `${signedNumberLabel(largest.diffValue)}; ${smallNItemLabel(largest.row, target)}`
+    : "-";
+  el("smalln-divergence").innerHTML = [
+    smallNCard(t("smallNDivergenceSelected"), `${modelLabel(modelA)} - ${modelLabel(modelB)}`),
+    smallNCard(t("smallNDivergenceTv", { target: smallNTargetLabel(target) }), fmt.format(tv)),
+    smallNCard(t("smallNDivergenceMaxShift"), largestLabel),
+    smallNCard(t("smallNDivergenceMeanGap"), signedNumberLabel(meanGap)),
+  ].join("");
+}
+
 function renderSmallNTopK() {
   const data = state.lastSmallN;
   if (!data) return;
@@ -2728,10 +2799,8 @@ function renderSmallNTopK() {
   const body = rows.map((row, index) => {
     cumulative = addFractions(cumulative, parseFractionLabel(row.probability_fractions?.[model]));
     const cumulativeLabel = fractionToLabel(cumulative);
-    const item = target === "tree"
-      ? `#${row.rank}; ${row.code || "root"}`
-      : `${row.shape_signature} (#${row.representative_rank})`;
-    const rankAttr = target === "tree" ? `data-smalln-rank="${row.rank}"` : `data-smalln-shape-signature="${escapeHtml(row.shape_signature)}" data-smalln-shape-rank="${row.representative_rank}"`;
+    const item = smallNItemLabel(row, target);
+    const rankAttr = smallNRowLinkAttributes(row, target);
     return `<tr ${rankAttr}>
       <td>${index + 1}</td>
       <td><span class="shape-signature" title="${escapeHtml(item)}">${escapeHtml(item)}</span></td>
@@ -2745,7 +2814,7 @@ function renderSmallNTopK() {
   );
   el("smalln-topk-summary").textContent = t("smallNTopKSummary", {
     k: fmt.format(rows.length),
-    target: target === "tree" ? t("smallNTopKTree") : t("smallNTopKShape"),
+    target: smallNTargetLabel(target),
     fraction: fractionToLabel(summaryFraction),
     decimal: fmt.format(fractionToNumber(summaryFraction)),
   });
@@ -2769,16 +2838,14 @@ function renderSmallNDifference() {
     .sort((a, b) => Math.abs(b.diffValue) - Math.abs(a.diffValue) || (a.row.rank ?? a.row.representative_rank) - (b.row.rank ?? b.row.representative_rank))
     .slice(0, 12);
   el("smalln-diff-summary").textContent = t("smallNDiffSummary", {
-    target: target === "tree" ? t("smallNTopKTree") : t("smallNTopKShape"),
+    target: smallNTargetLabel(target),
     modelA: modelLabel(modelA),
     modelB: modelLabel(modelB),
   });
   el("smalln-diff-table").innerHTML = rows
     .map(({ row, diff, diffValue }, index) => {
-      const item = target === "tree"
-        ? `#${row.rank}; ${row.code || "root"}`
-        : `${row.shape_signature} (#${row.representative_rank})`;
-      const rankAttr = target === "tree" ? `data-smalln-rank="${row.rank}"` : `data-smalln-shape-signature="${escapeHtml(row.shape_signature)}" data-smalln-shape-rank="${row.representative_rank}"`;
+      const item = smallNItemLabel(row, target);
+      const rankAttr = smallNRowLinkAttributes(row, target);
       const direction = diffValue > 0 ? "+" : "";
       return `<tr ${rankAttr}>
         <td>${index + 1}</td>
@@ -3000,6 +3067,7 @@ function renderSmallN(data, options = {}) {
   drawSmallNDistribution();
   renderSmallNTopK();
   renderSmallNDifference();
+  renderSmallNDivergence();
   saveSmallNState();
 }
 
@@ -3632,6 +3700,7 @@ async function init() {
       if (id === "smalln-diff-model-a") state.smallNDiffModelA = event.target.value;
       if (id === "smalln-diff-model-b") state.smallNDiffModelB = event.target.value;
       renderSmallNDifference();
+      renderSmallNDivergence();
       saveSmallNState();
     });
   }
