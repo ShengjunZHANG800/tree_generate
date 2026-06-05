@@ -34,3 +34,14 @@ node tests\frontend_smoke.js
 
 GitHub Pages hosts a public project page from `docs/`. The full interactive lab needs the FastAPI backend, so run locally or deploy the Python app on a platform that supports ASGI.
 
+## Deploy on Render
+
+The repository includes `render.yaml` for Render Blueprint deployment.
+
+[Deploy to Render](https://render.com/deploy?repo=https://github.com/ShengjunZHANG800/tree_generate)
+
+Render settings if creating a Web Service manually:
+
+- Build Command: `pip install -r requirements.txt`
+- Start Command: `uvicorn ewens_app.main:app --host 0.0.0.0 --port $PORT`
+- Health Check Path: `/api/health`

@@ -222,6 +222,11 @@ def limits() -> dict[str, Any]:
     }
 
 
+@app.get("/api/health")
+def health() -> dict[str, str]:
+    return {"status": "ok"}
+
+
 @app.get("/api/theory")
 def theory(theta: float = 2.0) -> dict[str, Any]:
     try:
