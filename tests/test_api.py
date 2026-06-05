@@ -3,6 +3,7 @@ from time import sleep
 import pytest
 from fastapi.testclient import TestClient
 
+import ewens_app.main as main_module
 from ewens_app.main import app
 
 
@@ -145,6 +146,37 @@ def test_sample_task_endpoint_completes():
     assert task["status"] == "completed"
     assert task["result"]["summary"]["n"] == 80
     assert task["result"]["parameters"]["model"] == "plancherel_recursive"
+
+
+def test_task_queue_limit_returns_429(monkeypatch):
+    monkeypatch.setattr(main_module, "TASK_QUEUE_LIMIT", 1)
+    with main_module.TASK_LOCK:
+        previous_tasks = dict(main_module.TASKS)
+        main_module.TASKS.clear()
+        main_module.TASKS["queued-test-task"] = {
+            "id": "queued-test-task",
+            "kind": "sample",
+            "status": "queued",
+            "progress": {"current": 0, "total": 1, "fraction": 0.0, "stage": "queued"},
+            "cancel_requested": False,
+            "result": None,
+            "error": None,
+            "created_at": 0.0,
+            "updated_at": 0.0,
+        }
+
+    try:
+        response = client.post(
+            "/api/tasks/sample",
+            json={"model": "ewens", "theta": 2.0, "n": 80, "seed": 2026, "draw_limit": 1000},
+        )
+    finally:
+        with main_module.TASK_LOCK:
+            main_module.TASKS.clear()
+            main_module.TASKS.update(previous_tasks)
+
+    assert response.status_code == 429
+    assert "queue" in response.json()["detail"].lower()
 
 
 def test_scan_task_can_be_cancelled():

@@ -2390,10 +2390,16 @@ function smallNCard(label, value) {
 function smallNProbabilityCell(row, model) {
   const fraction = row.probability_fractions?.[model] ?? "-";
   const decimal = row.probabilities?.[model];
-  return `<td class="probability-cell">
-    <span class="probability-fraction">${escapeHtml(fraction)}</span>
-    <span class="probability-decimal">${decimal == null ? "-" : fmt.format(decimal)}</span>
-  </td>`;
+  return `<td class="probability-cell">${smallNProbabilityHtml(fraction, decimal)}</td>`;
+}
+
+function smallNProbabilityHtml(fraction, decimal, options = {}) {
+  const sign = options.sign || "";
+  const decimalValue = decimal == null ? "-" : `${sign}${fmt.format(decimal)}`;
+  return `
+    <span class="probability-fraction">${escapeHtml(`${sign}${fraction}`)}</span>
+    <span class="probability-decimal">${escapeHtml(decimalValue)}</span>
+  `;
 }
 
 function smallNProbabilityDetail(row, model) {
@@ -2401,14 +2407,13 @@ function smallNProbabilityDetail(row, model) {
   const decimal = row.probabilities?.[model];
   return `<span class="smalln-preview-probability">
     <strong>${escapeHtml(modelLabel(model))}</strong>
-    <span class="probability-fraction">${escapeHtml(fraction)}</span>
-    <span class="probability-decimal">${decimal == null ? "-" : fmt.format(decimal)}</span>
+    ${smallNProbabilityHtml(fraction, decimal)}
   </span>`;
 }
 
 function smallNComparisonCell(row, key) {
   const comparison = row.probability_comparisons?.[key];
-  return `<td class="probability-cell">${comparison ? `<span class="probability-fraction">${escapeHtml(comparison.fraction)}</span><span class="probability-decimal">${fmt.format(comparison.value)}</span>` : "-"}</td>`;
+  return `<td class="probability-cell">${comparison ? smallNProbabilityHtml(comparison.fraction, comparison.value) : "-"}</td>`;
 }
 
 function smallNFilteredRows() {
@@ -2730,8 +2735,8 @@ function renderSmallNTopK() {
     return `<tr ${rankAttr}>
       <td>${index + 1}</td>
       <td><span class="shape-signature" title="${escapeHtml(item)}">${escapeHtml(item)}</span></td>
-      <td class="probability-cell"><span class="probability-fraction">${escapeHtml(row.probability_fractions?.[model] ?? "-")}</span><span class="probability-decimal">${fmt.format(row.probabilities?.[model] ?? 0)}</span></td>
-      <td class="probability-cell"><span class="probability-fraction">${escapeHtml(cumulativeLabel)}</span><span class="probability-decimal">${fmt.format(fractionToNumber(cumulative))}</span></td>
+      <td class="probability-cell">${smallNProbabilityHtml(row.probability_fractions?.[model] ?? "-", row.probabilities?.[model] ?? 0)}</td>
+      <td class="probability-cell">${smallNProbabilityHtml(cumulativeLabel, fractionToNumber(cumulative))}</td>
     </tr>`;
   });
   const summaryFraction = rows.reduce(
@@ -2778,9 +2783,9 @@ function renderSmallNDifference() {
       return `<tr ${rankAttr}>
         <td>${index + 1}</td>
         <td><span class="shape-signature" title="${escapeHtml(item)}">${escapeHtml(item)}</span></td>
-        <td class="probability-cell"><span class="probability-fraction">${escapeHtml(row.probability_fractions?.[modelA] ?? "-")}</span><span class="probability-decimal">${fmt.format(row.probabilities?.[modelA] ?? 0)}</span></td>
-        <td class="probability-cell"><span class="probability-fraction">${escapeHtml(row.probability_fractions?.[modelB] ?? "-")}</span><span class="probability-decimal">${fmt.format(row.probabilities?.[modelB] ?? 0)}</span></td>
-        <td class="probability-cell"><span class="probability-fraction">${escapeHtml(`${direction}${fractionToLabel(diff)}`)}</span><span class="probability-decimal">${direction}${fmt.format(diffValue)}</span></td>
+        <td class="probability-cell">${smallNProbabilityHtml(row.probability_fractions?.[modelA] ?? "-", row.probabilities?.[modelA] ?? 0)}</td>
+        <td class="probability-cell">${smallNProbabilityHtml(row.probability_fractions?.[modelB] ?? "-", row.probabilities?.[modelB] ?? 0)}</td>
+        <td class="probability-cell">${smallNProbabilityHtml(fractionToLabel(diff), diffValue, { sign: direction })}</td>
       </tr>`;
     })
     .join("");
@@ -3009,7 +3014,7 @@ async function runSmallNExplorer() {
     renderSmallN(data, { resetFilters: false });
     setStatusMessage("statusSmallNDone", { count: fmt.format(data.rows.length) });
   } catch (error) {
-    setStatusMessage("error", { message: error.message });
+    setStatusMessage(error.cancelled ? "statusTaskCancelled" : "error", { message: error.message });
   } finally {
     toggleButtons(false);
     refreshSmallNTableControlState();
