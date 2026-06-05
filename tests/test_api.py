@@ -167,3 +167,10 @@ def test_scan_task_can_be_cancelled():
         sleep(0.05)
 
     assert task["status"] in {"cancelled", "completed"}
+
+
+def test_missing_task_returns_404():
+    response = client.get("/api/tasks/missing-task")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Task not found."

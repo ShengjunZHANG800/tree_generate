@@ -10,3 +10,7 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.13.5
+      - key: EWENS_TASK_WORKERS
+        value: 1
+      - key: EWENS_TASK_QUEUE_LIMIT
+        value: 3

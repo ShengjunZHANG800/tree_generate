@@ -7,6 +7,7 @@ from threading import Lock
 from time import time
 from typing import Any
 from uuid import uuid4
+import os
 
 from fastapi import FastAPI
 from fastapi import HTTPException
@@ -38,10 +39,11 @@ STATIC_DIR = APP_DIR / "static"
 app = FastAPI(title="Ewens Tree Lab")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
-TASK_EXECUTOR = ThreadPoolExecutor(max_workers=2)
+TASK_EXECUTOR = ThreadPoolExecutor(max_workers=int(os.getenv("EWENS_TASK_WORKERS", "1")))
 TASK_LOCK = Lock()
 TASKS: dict[str, dict[str, Any]] = {}
 TASK_HISTORY_LIMIT = 50
+TASK_QUEUE_LIMIT = int(os.getenv("EWENS_TASK_QUEUE_LIMIT", "3"))
 
 
 class SampleRequest(BaseModel):
@@ -194,6 +196,12 @@ def _start_task(kind: str, parameters: dict[str, Any], runner: Any) -> dict[str,
         "_cancel_event": cancel_event,
     }
     with TASK_LOCK:
+        active_count = sum(1 for item in TASKS.values() if item["status"] in {"queued", "running"})
+        if active_count >= TASK_QUEUE_LIMIT:
+            raise HTTPException(
+                status_code=429,
+                detail="The task queue is busy. Please wait for the current run to finish or cancel it before starting another.",
+            )
         TASKS[task_id] = task
         _prune_tasks()
     future = TASK_EXECUTOR.submit(_run_task, task_id, runner, cancel_event)

@@ -288,6 +288,8 @@ const I18N = {
     statusTaskCancelled: "Task cancelled.",
     statusTaskFailed: "Task failed: {message}",
     statusTaskProgress: "{label} {percent}%",
+    statusTaskLost: "This background task was interrupted or expired. Please run it again; use a smaller n if it repeats.",
+    statusTaskBusy: "The server is still working on another run. Please wait or cancel the current task before starting another.",
     statusNodeLocated: "Located node {id}: depth={depth}, subtree size={subtree}",
     statusNodeUnavailable: "Node-level plot data is not available for this sample.",
     statusNodeInvalid: "Enter a node id between 0 and {max}.",
@@ -532,6 +534,8 @@ const I18N = {
     statusTaskCancelled: "任务已取消。",
     statusTaskFailed: "任务失败：{message}",
     statusTaskProgress: "{label} {percent}%",
+    statusTaskLost: "后台任务已中断或过期。请重新运行；如果重复出现，请先减小 n。",
+    statusTaskBusy: "服务器仍在处理其它运行。请等待或取消当前任务后再开始新的任务。",
     statusNodeLocated: "已定位节点 {id}：depth={depth}，子树大小={subtree}",
     statusNodeUnavailable: "当前样本没有可定位的逐节点图数据。",
     statusNodeInvalid: "请输入 0 到 {max} 之间的节点 id。",
@@ -673,7 +677,12 @@ async function runTask(path, payload) {
   renderTaskProgress(task);
   while (["queued", "running"].includes(task.status)) {
     await delay(350);
-    task = await api(`/api/tasks/${task.id}`);
+    try {
+      task = await api(`/api/tasks/${task.id}`);
+    } catch (error) {
+      if (error.status === 404) throw new Error(t("statusTaskLost"));
+      throw error;
+    }
     renderTaskProgress(task);
   }
   renderTaskProgress(null);
@@ -802,7 +811,10 @@ async function api(path, options = {}) {
   });
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
-    throw new Error(body.detail || `HTTP ${response.status}`);
+    const message = response.status === 429 ? t("statusTaskBusy") : body.detail || `HTTP ${response.status}`;
+    const error = new Error(message);
+    error.status = response.status;
+    throw error;
   }
   return response.json();
 }
