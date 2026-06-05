@@ -74,7 +74,10 @@ async function main() {
     await page.waitForFunction(() => document.querySelector("#tree-highlight-note")?.textContent.includes("Leaves"), null, { timeout: 10000 });
     await page.selectOption("#tree-highlight-mode", "subtree_ge");
     await page.fill("#tree-highlight-value", "3");
-    await page.waitForFunction(() => document.querySelector("#tree-highlight-note")?.textContent.includes("No structural highlight"), null, { timeout: 10000 });
+    await page.waitForFunction(() => document.querySelector("#tree-highlight-note")?.textContent.includes("Ready to apply"), null, { timeout: 10000 });
+    await page.fill("#tree-highlight-value", "3.5");
+    await page.waitForFunction(() => document.querySelector("#tree-highlight-note")?.textContent.includes("Enter a non-negative integer"), null, { timeout: 10000 });
+    await page.fill("#tree-highlight-value", "3");
     await page.click("#tree-highlight-apply");
     await page.waitForFunction(() => document.querySelector("#tree-highlight-note")?.textContent.includes("subtree size >= 3"), null, { timeout: 10000 });
     const profileBox = await page.locator("#profile-chart").boundingBox();

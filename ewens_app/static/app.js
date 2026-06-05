@@ -14,6 +14,7 @@ const state = {
   treeHighlightValue: "",
   treeHighlightSet: null,
   treeHighlightLabel: "",
+  treeHighlightDirty: false,
   treeChartBars: {},
   treeRender: null,
   treeLayout: "centered-upward",
@@ -102,6 +103,7 @@ const I18N = {
     treeHighlightClear: "Clear",
     treeHighlightNoteNone: "No structural highlight",
     treeHighlightNote: "{label}: {count} nodes",
+    treeHighlightPending: "Ready to apply: {label}",
     treeHighlightNeedsNode: "Select or locate a node first.",
     treeHighlightNeedsValue: "Enter a non-negative integer value.",
     chartProfile: "Profile",
@@ -356,6 +358,7 @@ const I18N = {
     treeHighlightClear: "清除",
     treeHighlightNoteNone: "无结构高亮",
     treeHighlightNote: "{label}：{count} 个节点",
+    treeHighlightPending: "待应用：{label}",
     treeHighlightNeedsNode: "请先选择或定位一个节点。",
     treeHighlightNeedsValue: "请输入非负整数。",
     chartProfile: "Profile",
@@ -1278,17 +1281,34 @@ function treeHighlightModeLabel(mode = state.treeHighlightMode, value = state.tr
 
 function parseTreeHighlightValue() {
   const raw = String(el("tree-highlight-value")?.value ?? state.treeHighlightValue ?? "").trim();
+  if (!/^\d+$/.test(raw)) return null;
   const value = Number.parseInt(raw, 10);
-  return Number.isInteger(value) && value >= 0 ? value : null;
+  return Number.isSafeInteger(value) ? value : null;
 }
 
 function updateTreeHighlightNote() {
   const note = el("tree-highlight-note");
   if (!note) return;
+  note.classList.remove("applied", "pending", "invalid");
+  if (state.treeHighlightDirty) {
+    const mode = state.treeHighlightMode || "none";
+    const value = treeHighlightRequiresValue(mode) ? parseTreeHighlightValue() : "";
+    if (treeHighlightRequiresValue(mode) && value == null) {
+      note.classList.add("invalid");
+      note.textContent = t("treeHighlightNeedsValue");
+      return;
+    }
+    note.classList.add("pending");
+    note.textContent = t("treeHighlightPending", {
+      label: treeHighlightModeLabel(mode, value),
+    });
+    return;
+  }
   if (!state.treeHighlightSet) {
     note.textContent = t("treeHighlightNoteNone");
     return;
   }
+  note.classList.add("applied");
   note.textContent = t("treeHighlightNote", {
     label: state.treeHighlightLabel,
     count: fmt.format(state.treeHighlightSet.size),
@@ -1307,10 +1327,11 @@ function updateTreeHighlightControls() {
 }
 
 function clearAppliedTreeHighlight(options = {}) {
+  const hadHighlight = Boolean(state.treeHighlightSet);
   state.treeHighlightSet = null;
   state.treeHighlightLabel = "";
   updateTreeHighlightNote();
-  if (options.redraw && state.lastSample) {
+  if (options.redraw && hadHighlight && state.lastSample) {
     drawTree(state.lastSample);
     renderCharts(state.lastSample);
   }
@@ -1354,6 +1375,7 @@ function applyTreeHighlight(mode = state.treeHighlightMode, value = state.treeHi
     updateTreeHighlightControls();
     return false;
   }
+  state.treeHighlightDirty = false;
   state.treeHighlightSet = result.nodes;
   state.treeHighlightLabel = result.label;
   updateTreeHighlightControls();
@@ -1389,6 +1411,7 @@ function clearTreeHighlight() {
   state.treeHighlightValue = "";
   state.treeHighlightSet = null;
   state.treeHighlightLabel = "";
+  state.treeHighlightDirty = false;
   updateTreeHighlightControls();
   if (state.lastSample) {
     drawTree(state.lastSample);
@@ -3357,6 +3380,7 @@ function renderSample(data) {
   state.treeHighlightValue = "";
   state.treeHighlightSet = null;
   state.treeHighlightLabel = "";
+  state.treeHighlightDirty = false;
   state.treeView = { scale: 1, offsetX: 0, offsetY: 0, dragging: false, moved: false, lastX: 0, lastY: 0 };
   state.treeRender = null;
   updateTreeHighlightControls();
@@ -3799,12 +3823,20 @@ async function init() {
   el("tree-highlight-mode").addEventListener("change", (event) => {
     state.treeHighlightMode = event.target.value;
     if (!treeHighlightRequiresValue(state.treeHighlightMode)) state.treeHighlightValue = "";
+    state.treeHighlightDirty = state.treeHighlightMode !== "none";
     clearAppliedTreeHighlight({ redraw: true });
     updateTreeHighlightControls();
   });
   el("tree-highlight-value").addEventListener("input", (event) => {
     state.treeHighlightValue = event.target.value;
+    state.treeHighlightDirty = state.treeHighlightMode !== "none";
     clearAppliedTreeHighlight({ redraw: true });
+  });
+  el("tree-highlight-value").addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      applyTreeHighlightFromControls();
+    }
   });
   el("tree-highlight-apply").addEventListener("click", applyTreeHighlightFromControls);
   el("tree-highlight-clear").addEventListener("click", clearTreeHighlight);
