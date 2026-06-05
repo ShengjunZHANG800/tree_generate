@@ -205,6 +205,8 @@ const I18N = {
     statusSmallNFilterApplied: "Filtered by {filter}",
     statusSmallNFiltersCleared: "Small-n filters cleared.",
     smallNDistribution: "Distribution",
+    smallNDistributionMax: "max {model}: {fraction} ({decimal})",
+    smallNDistributionMaxCount: "max count: {value}",
     smallNMetric: "Metric",
     smallNCountWeight: "count",
     smallNShapeGroups: "Shape groups",
@@ -459,6 +461,8 @@ const I18N = {
     statusSmallNFilterApplied: "已按 {filter} 筛选",
     statusSmallNFiltersCleared: "Small-n 筛选已清除。",
     smallNDistribution: "分布",
+    smallNDistributionMax: "{model} 最大值：{fraction} ({decimal})",
+    smallNDistributionMaxCount: "最大计数：{value}",
     smallNMetric: "指标",
     smallNCountWeight: "count",
     smallNShapeGroups: "Shape 分组",
@@ -1751,16 +1755,23 @@ function sortedChartRows(rows, xField) {
   return [...(rows || [])].sort((a, b) => Number(a[xField]) - Number(b[xField]));
 }
 
+function measureLeftAxisPad(ctx, labels, minimum = 42, gap = 8) {
+  const widest = Math.max(0, ...labels.map((label) => ctx.measureText(String(label)).width));
+  return Math.ceil(Math.max(minimum, widest + gap));
+}
+
 function drawBarChart(canvasId, rows, xField, yField, color = "#007f89", options = {}) {
   const canvas = el(canvasId);
   const { ctx, width, height } = fitCanvas(canvas);
   ctx.clearRect(0, 0, width, height);
   state.treeChartBars[canvasId] = [];
   const chartRows = sortedChartRows(rows, xField);
-  const pad = { left: 42, right: 12, top: 18, bottom: 34 };
+  const maxY = Math.max(...chartRows.map((row) => row[yField]), 1);
+  ctx.font = "11px system-ui, sans-serif";
+  const maxYLabel = compact.format(maxY);
+  const pad = { left: measureLeftAxisPad(ctx, [maxYLabel, "0"], 42), right: 12, top: 18, bottom: 34 };
   const plotW = width - pad.left - pad.right;
   const plotH = height - pad.top - pad.bottom;
-  const maxY = Math.max(...chartRows.map((row) => row[yField]), 1);
   ctx.strokeStyle = "#dce3e8";
   ctx.beginPath();
   ctx.moveTo(pad.left, pad.top);
@@ -1791,9 +1802,8 @@ function drawBarChart(canvasId, rows, xField, yField, color = "#007f89", options
     }
   });
   ctx.fillStyle = "#6b7785";
-  ctx.font = "11px system-ui, sans-serif";
   ctx.textAlign = "right";
-  ctx.fillText(compact.format(maxY), pad.left - 5, pad.top + 4);
+  ctx.fillText(maxYLabel, pad.left - 5, pad.top + 4);
   ctx.fillText("0", pad.left - 5, pad.top + plotH);
   ctx.textAlign = "center";
   if (chartRows.length) {
@@ -2222,9 +2232,6 @@ function drawLineChart(canvasId, groups) {
     ctx.fillText(t("scanEmptyChart"), width / 2, height / 2);
     return;
   }
-  const pad = { left: 58, right: 18, top: 22, bottom: 46 };
-  const plotW = width - pad.left - pad.right;
-  const plotH = height - pad.top - pad.bottom;
   const rows = groups.map((group) => ({
     ...group,
     x: Math.log(group.n),
@@ -2247,6 +2254,12 @@ function drawLineChart(canvasId, groups) {
   const maxX = Math.max(...xs);
   const minY = Math.min(...ys);
   const maxY = Math.max(...ys);
+  const minYLabel = fmt.format(minY);
+  const maxYLabel = fmt.format(maxY);
+  ctx.font = "11px system-ui, sans-serif";
+  const pad = { left: measureLeftAxisPad(ctx, [minYLabel, maxYLabel], 58), right: 18, top: 22, bottom: 46 };
+  const plotW = width - pad.left - pad.right;
+  const plotH = height - pad.top - pad.bottom;
   const spanX = Math.max(1e-9, maxX - minX);
   const spanY = Math.max(1, maxY - minY);
   const xFor = (x) => pad.left + (rows.length === 1 ? plotW / 2 : ((x - minX) / spanX) * plotW);
@@ -2309,10 +2322,9 @@ function drawLineChart(canvasId, groups) {
   });
 
   ctx.fillStyle = "#6b7785";
-  ctx.font = "11px system-ui, sans-serif";
   ctx.textAlign = "right";
-  ctx.fillText(fmt.format(maxY), pad.left - 6, pad.top + 4);
-  ctx.fillText(fmt.format(minY), pad.left - 6, pad.top + plotH);
+  ctx.fillText(maxYLabel, pad.left - 6, pad.top + 4);
+  ctx.fillText(minYLabel, pad.left - 6, pad.top + plotH);
   ctx.textAlign = "center";
   ctx.fillText(t("scanChartXAxis"), pad.left + plotW / 2, height - 12);
   ctx.save();
@@ -2649,12 +2661,14 @@ function drawSmallNDistribution() {
   const canvas = el("smalln-distribution-canvas");
   const { ctx, width, height } = fitCanvas(canvas);
   ctx.clearRect(0, 0, width, height);
+  const note = el("smalln-distribution-note");
   const data = state.lastSmallN;
   const metric = state.smallNDistributionMetric || "height";
   const model = state.smallNDistributionModel || "uniform_recursive";
   const rows = data?.distributions?.[metric] || [];
   if (!rows.length) {
     state.smallNDistributionBars = [];
+    if (note) note.textContent = "";
     ctx.fillStyle = "#6b7785";
     ctx.font = "13px system-ui, sans-serif";
     ctx.textAlign = "center";
@@ -2663,7 +2677,22 @@ function drawSmallNDistribution() {
   }
   const values = rows.map((row) => (model === "count" ? row.count : row.probabilities?.[model] ?? 0));
   const maxY = Math.max(...values, 1e-12);
-  const pad = { top: 18, right: 14, bottom: 36, left: 42 };
+  const maxRow = rows[Math.max(0, values.findIndex((value) => value === maxY))] || rows[0];
+  const decimalMaxYLabel = fmt.format(maxY);
+  const maxYLabel = model === "count"
+    ? fmt.format(maxY)
+    : maxRow?.probability_fractions?.[model] || decimalMaxYLabel;
+  if (note) {
+    note.textContent = model === "count"
+      ? t("smallNDistributionMaxCount", { value: fmt.format(maxY) })
+      : t("smallNDistributionMax", {
+        model: modelLabel(model),
+        fraction: maxYLabel,
+        decimal: decimalMaxYLabel,
+      });
+  }
+  ctx.font = "12px system-ui, sans-serif";
+  const pad = { top: 18, right: 14, bottom: 36, left: measureLeftAxisPad(ctx, [maxYLabel, "0"], 42, 10) };
   const plotW = Math.max(1, width - pad.left - pad.right);
   const plotH = Math.max(1, height - pad.top - pad.bottom);
   ctx.strokeStyle = "#d7e0e5";
@@ -2704,9 +2733,8 @@ function drawSmallNDistribution() {
     }
   });
   ctx.fillStyle = "#46535f";
-  ctx.font = "12px system-ui, sans-serif";
   ctx.textAlign = "right";
-  ctx.fillText(model === "count" ? fmt.format(maxY) : fmt.format(maxY), pad.left - 6, pad.top + 4);
+  ctx.fillText(maxYLabel, pad.left - 6, pad.top + 4);
   ctx.fillText("0", pad.left - 6, pad.top + plotH);
   ctx.textAlign = "center";
   const first = rows[0]?.value;

@@ -89,6 +89,17 @@ async function main() {
     await page.click("#tab-smalln");
     await page.waitForSelector("#smalln-table tr", { timeout: 20000 });
     await page.waitForSelector("#smalln-diff-table tr", { timeout: 20000 });
+    await page.waitForFunction(() => document.querySelector("#smalln-distribution-note")?.textContent.includes("/"), null, { timeout: 10000 });
+    const leftEdgeInk = await page.$eval("#smalln-distribution-canvas", (canvas) => {
+      const ctx = canvas.getContext("2d");
+      const image = ctx.getImageData(0, 0, Math.min(4, canvas.width), canvas.height).data;
+      let pixels = 0;
+      for (let i = 3; i < image.length; i += 4) {
+        if (image[i] > 0) pixels += 1;
+      }
+      return pixels;
+    });
+    if (leftEdgeInk > 0) throw new Error("Small-n distribution y-axis label is clipped at the left canvas edge.");
     const diffRows = await page.locator("#smalln-diff-table tr").count();
     if (diffRows < 1) throw new Error("Small-n difference table did not render rows.");
     const divergenceCards = await page.locator("#smalln-divergence .scan-analysis-card").count();
