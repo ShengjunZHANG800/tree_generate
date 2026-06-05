@@ -451,8 +451,9 @@ button:disabled {
 .smalln-analysis-controls {
   align-items: end;
   display: grid;
-  grid-template-columns: repeat(3, minmax(92px, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
+  min-width: 0;
 }
 
 .smalln-analysis-controls label {
@@ -461,10 +462,16 @@ button:disabled {
 
 .smalln-analysis-controls button {
   height: 38px;
+  min-width: 0;
+  overflow: hidden;
+  padding: 0 10px;
+  text-overflow: ellipsis;
 }
 
-.smalln-analysis-controls .smalln-theta-compare-control input {
+.smalln-analysis-controls input,
+.smalln-analysis-controls select {
   height: 38px;
+  min-width: 0;
 }
 
 .smalln-shape-wrap {
@@ -1326,6 +1333,12 @@ td:first-child {
 
   .smalln-analysis-controls {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .smalln-analysis-title {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .scan-models {

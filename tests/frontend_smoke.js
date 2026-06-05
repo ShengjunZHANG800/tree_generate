@@ -111,8 +111,21 @@ async function main() {
     await page.waitForFunction(() => document.querySelector("#smalln-diff-summary")?.textContent.includes("theta 2 - theta 1"), null, { timeout: 30000 });
     const thetaCompareText = await page.locator("#smalln-divergence").textContent();
     if (!thetaCompareText.includes("Ewens theta 2 - theta 1")) throw new Error("Small-n theta comparison did not update the divergence overview.");
-
+    await page.setViewportSize({ width: 900, height: 1100 });
+    await page.waitForTimeout(200);
+    const tabletOverflow = await page.evaluate(() => ({
+      body: document.documentElement.scrollWidth > window.innerWidth + 1,
+      controls: [...document.querySelectorAll(".smalln-analysis-controls")]
+        .some((node) => node.scrollWidth > node.clientWidth + 2),
+    }));
+    if (tabletOverflow.body || tabletOverflow.controls) throw new Error("Small-n tablet layout overflows horizontally.");
+    await page.setViewportSize({ width: 390, height: 1000 });
     await page.click("#tab-lab");
+    await page.waitForTimeout(200);
+    const treeCanvasWidth = await page.$eval("#tree-canvas", (canvas) => canvas.width);
+    if (treeCanvasWidth < 100) throw new Error("Tree canvas was not redrawn after switching tabs on mobile.");
+    await page.setViewportSize({ width: 1440, height: 1000 });
+
     await page.check('input[name="scan-model"][value="uniform_recursive"]');
     await page.fill("#scan-theta-values", "1.5,2.5");
     await page.fill("#scan-n-values", "30");

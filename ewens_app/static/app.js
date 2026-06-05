@@ -909,6 +909,9 @@ function renderTheory(data) {
 
 function fitCanvas(canvas) {
   const rect = canvas.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) {
+    return { ctx: canvas.getContext("2d"), width: 0, height: 0, ratio: window.devicePixelRatio || 1, resized: false, hidden: true };
+  }
   const ratio = window.devicePixelRatio || 1;
   const targetWidth = Math.max(1, Math.floor(rect.width * ratio));
   const targetHeight = Math.max(1, Math.floor(rect.height * ratio));
@@ -924,7 +927,8 @@ function fitCanvas(canvas) {
 
 function drawEmptyTree(message) {
   const canvas = el("tree-canvas");
-  const { ctx, width, height } = fitCanvas(canvas);
+  const { ctx, width, height, hidden } = fitCanvas(canvas);
+  if (hidden) return;
   ctx.clearRect(0, 0, width, height);
   ctx.fillStyle = "#6b7785";
   ctx.font = "14px system-ui, sans-serif";
@@ -1534,7 +1538,8 @@ function drawTree(data) {
   }
   note.textContent = t("treeComplete", { n: compact.format(n), limit: compact.format(limit) });
   const canvas = el("tree-canvas");
-  const { ctx, width, height, ratio } = fitCanvas(canvas);
+  const { ctx, width, height, ratio, hidden } = fitCanvas(canvas);
+  if (hidden) return;
   ctx.clearRect(0, 0, width, height);
   const nodes = data.nodes;
   let render = state.treeRender;
@@ -1771,7 +1776,8 @@ function measureLeftAxisPad(ctx, labels, minimum = 42, gap = 8) {
 
 function drawBarChart(canvasId, rows, xField, yField, color = "#007f89", options = {}) {
   const canvas = el(canvasId);
-  const { ctx, width, height } = fitCanvas(canvas);
+  const { ctx, width, height, hidden } = fitCanvas(canvas);
+  if (hidden) return;
   ctx.clearRect(0, 0, width, height);
   state.treeChartBars[canvasId] = [];
   const chartRows = sortedChartRows(rows, xField);
@@ -2193,7 +2199,8 @@ function showNodeDataById(rawId = el("node-data-id").value, options = {}) {
 function drawSimulation(sim) {
   const canvas = el("simulation-canvas");
   if (!sim) {
-    const { ctx, width, height } = fitCanvas(canvas);
+    const { ctx, width, height, hidden } = fitCanvas(canvas);
+    if (hidden) return;
     ctx.clearRect(0, 0, width, height);
     state.treeChartBars["simulation-canvas"] = [];
     ctx.fillStyle = "#6b7785";
@@ -2232,7 +2239,8 @@ function scanYAxisLabel(metricName = state.scanMetric) {
 
 function drawLineChart(canvasId, groups) {
   const canvas = el(canvasId);
-  const { ctx, width, height } = fitCanvas(canvas);
+  const { ctx, width, height, hidden } = fitCanvas(canvas);
+  if (hidden) return;
   ctx.clearRect(0, 0, width, height);
   if (!groups?.length) {
     ctx.fillStyle = "#6b7785";
@@ -2444,6 +2452,21 @@ function setActiveTab(targetId) {
     button.classList.toggle("active", button.dataset.tabTarget === targetId);
   }
   if (targetId === "smalln-view" && !state.lastSmallN) runSmallNExplorer();
+  requestAnimationFrame(redrawActiveTab);
+}
+
+function redrawActiveTab() {
+  const activeId = document.querySelector(".tab-view.active")?.id;
+  if (activeId === "lab-view" && state.lastSample) {
+    drawTree(state.lastSample);
+    renderCharts(state.lastSample);
+    drawSimulation(state.lastSimulation);
+    drawLineChart("scan-chart", state.lastScan?.groups || []);
+  }
+  if (activeId === "smalln-view" && state.lastSmallN) {
+    drawSmallNDistribution();
+    renderSmallNCurrentPreview(state.smallNRowsByRank.get(state.smallNSelectedRank));
+  }
 }
 
 function smallNCard(label, value) {
@@ -2668,7 +2691,8 @@ function renderSmallNShapeGroups() {
 
 function drawSmallNDistribution() {
   const canvas = el("smalln-distribution-canvas");
-  const { ctx, width, height } = fitCanvas(canvas);
+  const { ctx, width, height, hidden } = fitCanvas(canvas);
+  if (hidden) return;
   ctx.clearRect(0, 0, width, height);
   const note = el("smalln-distribution-note");
   const data = state.lastSmallN;
@@ -3055,7 +3079,8 @@ function parentFromShapeSignature(signature) {
 
 function drawSmallNParentPreview(parent) {
   const canvas = el("smalln-preview-canvas");
-  const { ctx, width, height } = fitCanvas(canvas);
+  const { ctx, width, height, hidden } = fitCanvas(canvas);
+  if (hidden) return;
   ctx.clearRect(0, 0, width, height);
   if (!parent?.length) {
     ctx.fillStyle = "#6b7785";
@@ -4025,14 +4050,7 @@ async function init() {
   el("tree-canvas").addEventListener("pointerleave", handleTreePointerUp);
   el("tree-canvas").addEventListener("dblclick", resetTreeView);
   el("tree-reset-view").addEventListener("click", resetTreeView);
-  window.addEventListener("resize", () => {
-    if (state.lastSample) {
-      drawTree(state.lastSample);
-      renderCharts(state.lastSample);
-      drawSimulation(state.lastSimulation);
-      drawLineChart("scan-chart", state.lastScan?.groups || []);
-    }
-  });
+  window.addEventListener("resize", redrawActiveTab);
   applyLanguage("en");
   generateSample({ recordHistory: false });
 }
