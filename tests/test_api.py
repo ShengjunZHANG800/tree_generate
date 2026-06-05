@@ -14,8 +14,10 @@ def test_limits_endpoint():
 
     assert response.status_code == 200
     body = response.json()
-    assert body["max_n"] == 10_000_000
-    assert body["max_draw_limit"] == 100_000
+    assert body["max_n"] == 20_000_000
+    assert body["max_draw_limit"] == 150_000
+    assert body["default_draw_limit"] == 75_000
+    assert body["small_n_max"] == 10
     assert "ewens" in body["model_performance_notes"]
 
 
@@ -116,8 +118,8 @@ def test_small_n_recursive_endpoint_enumerates_probabilities():
         assert height_total == pytest.approx(1.0)
 
 
-def test_small_n_recursive_endpoint_rejects_large_n():
-    response = client.post("/api/small-n/recursive", json={"n": 10, "theta": 2.0})
+def test_small_n_recursive_endpoint_rejects_too_large_n():
+    response = client.post("/api/small-n/recursive", json={"n": 11, "theta": 2.0})
 
     assert response.status_code == 400
 
@@ -174,3 +176,22 @@ def test_missing_task_returns_404():
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Task not found."
+
+
+def test_small_n_task_endpoint_completes():
+    response = client.post("/api/tasks/small-n", json={"n": 6, "theta": 2.0})
+
+    assert response.status_code == 200
+    task = response.json()
+    assert task["kind"] == "small_n"
+
+    for _ in range(40):
+        poll = client.get(f"/api/tasks/{task['id']}")
+        assert poll.status_code == 200
+        task = poll.json()
+        if task["status"] == "completed":
+            break
+        sleep(0.05)
+
+    assert task["status"] == "completed"
+    assert task["result"]["parameters"]["total_trees"] == 120

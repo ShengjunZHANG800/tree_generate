@@ -5,7 +5,9 @@ from functools import lru_cache
 from itertools import product
 from math import factorial
 from typing import Any
+from typing import Callable
 
+from .ewens import EwensCancelled
 from .ewens import MODEL_EWENS
 from .ewens import MODEL_LABELS
 from .ewens import MODEL_PLANCHEREL_RECURSIVE
@@ -13,9 +15,11 @@ from .ewens import MODEL_UNIFORM_RECURSIVE
 from .ewens import solve_theory
 
 
-MAX_SMALL_N = 9
-MAX_SMALL_ROWS = 50_000
+MAX_SMALL_N = 10
+MAX_SMALL_ROWS = 400_000
 SMALL_N_MODELS = (MODEL_EWENS, MODEL_UNIFORM_RECURSIVE, MODEL_PLANCHEREL_RECURSIVE)
+ProgressCallback = Callable[[dict[str, Any]], None]
+CancelCheck = Callable[[], bool]
 
 
 def _validate_small_n(n: int) -> int:
@@ -180,7 +184,37 @@ def _iter_parent_codes(n: int):
         yield (-1, *choices)
 
 
-def explore_recursive_trees(n: int, theta: float = 2.0) -> dict[str, Any]:
+def _emit_progress(
+    progress: ProgressCallback | None,
+    *,
+    current: int,
+    total: int,
+    message: str,
+) -> None:
+    if progress is None:
+        return
+    progress(
+        {
+            "stage": "enumerate",
+            "current": current,
+            "total": total,
+            "fraction": float(current / total) if total else 0.0,
+            "message": message,
+        }
+    )
+
+
+def _check_cancel(cancel_check: CancelCheck | None) -> None:
+    if cancel_check is not None and cancel_check():
+        raise EwensCancelled("Operation cancelled.")
+
+
+def explore_recursive_trees(
+    n: int,
+    theta: float = 2.0,
+    progress: ProgressCallback | None = None,
+    cancel_check: CancelCheck | None = None,
+) -> dict[str, Any]:
     n = _validate_small_n(n)
     theta = float(theta)
     if theta <= 0:
@@ -194,7 +228,11 @@ def explore_recursive_trees(n: int, theta: float = 2.0) -> dict[str, Any]:
     distribution_metrics = ("height", "leaves", "root_degree", "max_degree")
     distributions: dict[str, dict[int, dict[str, Any]]] = {metric: {} for metric in distribution_metrics}
     shape_groups: dict[str, dict[str, Any]] = {}
+    _emit_progress(progress, current=0, total=total, message="Enumerating recursive trees")
     for index, parent in enumerate(_iter_parent_codes(n), start=1):
+        if index % 512 == 0:
+            _check_cancel(cancel_check)
+            _emit_progress(progress, current=index, total=total, message="Enumerating recursive trees")
         depth = _depths(parent)
         sizes = _subtree_sizes(parent)
         children = _children_from_parent(parent)
@@ -271,6 +309,8 @@ def explore_recursive_trees(n: int, theta: float = 2.0) -> dict[str, Any]:
                 "probability_comparisons": _probability_comparisons(probability_fractions),
             }
         )
+    _check_cancel(cancel_check)
+    _emit_progress(progress, current=total, total=total, message="Recursive tree enumeration complete")
     shape_group_rows = []
     for group in shape_groups.values():
         probability_fractions = group["probability_fractions"]

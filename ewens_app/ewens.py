@@ -16,9 +16,9 @@ from scipy.special import digamma
 from scipy.special import gammaln
 
 
-MAX_N = 10_000_000
-MAX_DRAW_LIMIT = 100_000
-DEFAULT_DRAW_LIMIT = 50_000
+MAX_N = 20_000_000
+MAX_DRAW_LIMIT = 150_000
+DEFAULT_DRAW_LIMIT = 75_000
 MAX_SIM_WORK = 30_000_000
 MAX_SIM_SAMPLES = 250
 MAX_SCAN_WORK = 60_000_000
@@ -43,8 +43,8 @@ MODEL_FIXED_THETA = {
 }
 MODEL_MAX_N = {
     MODEL_EWENS: MAX_N,
-    MODEL_UNIFORM_RECURSIVE: MAX_N,
-    MODEL_PLANCHEREL_RECURSIVE: 100_000,
+    MODEL_UNIFORM_RECURSIVE: 10_000_000,
+    MODEL_PLANCHEREL_RECURSIVE: 150_000,
 }
 MODEL_PERFORMANCE_NOTES = {
     MODEL_EWENS: "Streaming Ewens recursion; large n can return statistics without drawable node arrays.",

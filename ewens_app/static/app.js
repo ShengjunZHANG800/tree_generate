@@ -41,7 +41,7 @@ const state = {
   statusVisible: false,
   treeView: { scale: 1, offsetX: 0, offsetY: 0, dragging: false, moved: false, lastX: 0, lastY: 0 },
   treeDrawPending: false,
-  limits: { max_n: 10000000, default_draw_limit: 50000, max_draw_limit: 100000 },
+  limits: { max_n: 20000000, default_draw_limit: 75000, max_draw_limit: 150000, small_n_max: 10 },
 };
 
 let fmt = new Intl.NumberFormat("en-US", { maximumFractionDigits: 6 });
@@ -288,6 +288,8 @@ const I18N = {
     statusTaskCancelled: "Task cancelled.",
     statusTaskFailed: "Task failed: {message}",
     statusTaskProgress: "{label} {percent}%",
+    statusTaskPreparing: "{label}: preparing...",
+    statusTaskQueued: "{label}: queued...",
     statusTaskLost: "This background task was interrupted or expired. Please run it again; use a smaller n if it repeats.",
     statusTaskBusy: "The server is still working on another run. Please wait or cancel the current task before starting another.",
     statusNodeLocated: "Located node {id}: depth={depth}, subtree size={subtree}",
@@ -534,6 +536,8 @@ const I18N = {
     statusTaskCancelled: "任务已取消。",
     statusTaskFailed: "任务失败：{message}",
     statusTaskProgress: "{label} {percent}%",
+    statusTaskPreparing: "{label}：准备中...",
+    statusTaskQueued: "{label}：排队中...",
     statusTaskLost: "后台任务已中断或过期。请重新运行；如果重复出现，请先减小 n。",
     statusTaskBusy: "服务器仍在处理其它运行。请等待或取消当前任务后再开始新的任务。",
     statusNodeLocated: "已定位节点 {id}：depth={depth}，子树大小={subtree}",
@@ -647,7 +651,12 @@ function setStatusMessage(key, values = {}, visible = true) {
 function taskLabel(kind) {
   if (kind === "scan") return t("statusScanRunning");
   if (kind === "simulation") return t("statusSimulationRunning");
+  if (kind === "small_n") return t("statusSmallNRunning");
   return t("statusGenerateRunning");
+}
+
+function taskDisplayLabel(kind) {
+  return taskLabel(kind).replace(/[.。…]+$/, "");
 }
 
 function renderTaskProgress(task) {
@@ -655,17 +664,24 @@ function renderTaskProgress(task) {
   const target = el("status");
   const cancelButton = el("cancel-task");
   const progress = task?.progress || {};
-  const fraction = Math.max(0, Math.min(1, Number(progress.fraction) || 0));
+  const rawFraction = Math.max(0, Math.min(1, Number(progress.fraction) || 0));
+  const preparing = progress.stage === "theory";
+  const queued = task?.status === "queued" || progress.stage === "queued";
+  const fraction = preparing ? 0.03 : rawFraction;
   target.classList.toggle("show", Boolean(task));
   target.classList.toggle("task-active", Boolean(state.activeTask));
   el("task-progress-bar").style.width = `${Math.round(fraction * 100)}%`;
   cancelButton.disabled = !state.activeTask || task.cancel_requested;
   if (!task) return;
   const percent = Math.round(fraction * 100);
-  el("status-text").textContent = t("statusTaskProgress", {
-    label: task.cancel_requested ? t("statusCancelRequested") : taskLabel(task.kind),
-    percent,
-  });
+  const label = task.cancel_requested ? t("statusCancelRequested") : taskDisplayLabel(task.kind);
+  if (queued) {
+    el("status-text").textContent = t("statusTaskQueued", { label });
+  } else if (preparing) {
+    el("status-text").textContent = t("statusTaskPreparing", { label });
+  } else {
+    el("status-text").textContent = t("statusTaskProgress", { label, percent });
+  }
 }
 
 function delay(ms) {
@@ -2979,14 +2995,13 @@ function renderSmallN(data, options = {}) {
 }
 
 async function runSmallNExplorer() {
-  setStatusMessage("statusSmallNRunning");
   toggleButtons(true);
   try {
     const payload = {
       n: intOrNull("smalln-n"),
       theta: numberValue("smalln-theta"),
     };
-    const data = await api("/api/small-n/recursive", { method: "POST", body: JSON.stringify(payload) });
+    const data = await runTask("/api/tasks/small-n", payload);
     renderSmallN(data, { resetFilters: false });
     setStatusMessage("statusSmallNDone", { count: fmt.format(data.rows.length) });
   } catch (error) {
@@ -3528,6 +3543,7 @@ async function init() {
     state.limits = await api("/api/limits");
     el("draw-limit").value = state.limits.default_draw_limit;
     el("draw-limit").max = state.limits.max_draw_limit;
+    if (state.limits.small_n_max) el("smalln-n").max = state.limits.small_n_max;
     updateModelControls();
   } catch {
     // Defaults are already set.

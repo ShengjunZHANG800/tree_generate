@@ -30,6 +30,7 @@ from .ewens import sample
 from .ewens import scan_experiment
 from .ewens import simulate
 from .ewens import solve_theory
+from .smalln import MAX_SMALL_N
 from .smalln import explore_recursive_trees
 
 
@@ -227,6 +228,7 @@ def limits() -> dict[str, Any]:
         "model_fixed_theta": MODEL_FIXED_THETA,
         "model_max_n": MODEL_MAX_N,
         "model_performance_notes": MODEL_PERFORMANCE_NOTES,
+        "small_n_max": MAX_SMALL_N,
     }
 
 
@@ -326,6 +328,20 @@ def start_scan_task(request: ScanRequest) -> dict[str, Any]:
             request.n_values,
             request.samples,
             request.seed,
+            progress,
+            cancel_check,
+        ),
+    )
+
+
+@app.post("/api/tasks/small-n")
+def start_small_n_task(request: SmallNRequest) -> dict[str, Any]:
+    return _start_task(
+        "small_n",
+        request.model_dump(),
+        lambda progress, cancel_check: explore_recursive_trees(
+            request.n,
+            request.theta,
             progress,
             cancel_check,
         ),

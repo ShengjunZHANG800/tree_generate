@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Ewens Tree Lab</title>
-    <link rel="stylesheet" href="/static/styles.css?v=20260605-render-task-fix" />
+    <link rel="stylesheet" href="/static/styles.css?v=20260605-threshold-progress" />
   </head>
   <body>
     <main class="app-shell">
@@ -151,6 +151,22 @@
         </section>
       </section>
 
+      <section class="panel data-panel">
+        <div class="panel-title">
+          <h2 data-i18n="nodeData">Node data</h2>
+          <span id="table-note"></span>
+        </div>
+        <div class="node-data-lookup">
+          <label>
+            <span data-i18n="nodeDataLookup">Node id</span>
+            <input id="node-data-id" type="number" min="0" step="1" placeholder="0" />
+          </label>
+          <button id="node-data-show" type="button" data-i18n="nodeDataShow">Show node</button>
+          <button id="node-data-locate" type="button" data-i18n="locateNode">Locate</button>
+        </div>
+        <div id="node-data-details" class="node-data-details"></div>
+      </section>
+
       <section class="charts-grid">
         <section class="panel">
           <div class="panel-title"><h2 data-i18n="chartProfile">Profile</h2></div>
@@ -272,21 +288,6 @@
         <div id="history-list" class="history-list"></div>
       </section>
 
-      <section class="panel data-panel">
-        <div class="panel-title">
-          <h2 data-i18n="nodeData">Node data</h2>
-          <span id="table-note"></span>
-        </div>
-        <div class="node-data-lookup">
-          <label>
-            <span data-i18n="nodeDataLookup">Node id</span>
-            <input id="node-data-id" type="number" min="0" step="1" placeholder="0" />
-          </label>
-          <button id="node-data-show" type="button" data-i18n="nodeDataShow">Show node</button>
-          <button id="node-data-locate" type="button" data-i18n="locateNode">Locate</button>
-        </div>
-        <div id="node-data-details" class="node-data-details"></div>
-      </section>
       </section>
 
       <section id="smalln-view" class="tab-view">
@@ -299,7 +300,7 @@
             <div class="smalln-control-row smalln-primary-row">
               <label>
                 <span>n</span>
-                <input id="smalln-n" type="number" min="1" max="9" step="1" value="5" />
+                <input id="smalln-n" type="number" min="1" max="10" step="1" value="5" />
               </label>
               <label>
                 <span>theta</span>
@@ -545,6 +546,6 @@
         </section>
       </section>
     </main>
-    <script src="/static/app.js?v=20260605-render-task-fix"></script>
+    <script src="/static/app.js?v=20260605-threshold-progress"></script>
   </body>
 </html>
