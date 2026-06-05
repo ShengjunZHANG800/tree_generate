@@ -1,0 +1,550 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ewens Tree Lab</title>
+    <link rel="stylesheet" href="/static/styles.css?v=20260605-smalln-table" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div>
+          <h1>Ewens Tree Lab</h1>
+          <p data-i18n="subtitle">Second-order height comparison, random sampling, statistics, and visualization</p>
+        </div>
+        <div class="topbar-actions">
+          <div class="language-switch" aria-label="Language">
+            <button id="lang-en" type="button" class="active">EN</button>
+            <button id="lang-zh" type="button">中文</button>
+          </div>
+          <div class="source-links">
+          <a href="https://github.com/darkxan771/trees" target="_blank" rel="noreferrer" data-i18n="sourceCode">trees code</a>
+          <a href="https://arxiv.org/abs/2604.25877" target="_blank" rel="noreferrer">arXiv 2604.25877</a>
+          </div>
+        </div>
+      </header>
+
+      <section id="status" class="status" aria-live="polite">
+        <div class="status-row">
+          <span id="status-text"></span>
+          <button id="cancel-task" type="button" data-i18n="cancelTask">Cancel</button>
+        </div>
+        <div id="task-progress" class="task-progress" aria-hidden="true">
+          <div id="task-progress-bar"></div>
+        </div>
+      </section>
+
+      <nav class="tabs" aria-label="Workspace tabs">
+        <button id="tab-lab" type="button" class="active" data-tab-target="lab-view" data-i18n="tabLab">Tree Lab</button>
+        <button id="tab-smalln" type="button" data-tab-target="smalln-view" data-i18n="tabSmallN">Small-n Explorer</button>
+      </nav>
+
+      <section id="lab-view" class="tab-view active">
+      <section class="control-panel">
+        <form id="sample-form" class="controls">
+          <label>
+            <span data-i18n="model">Model</span>
+            <select id="model">
+              <option value="ewens" data-i18n="modelEwens">Ewens recursive</option>
+              <option value="uniform_recursive" data-i18n="modelUniform">Uniform recursive</option>
+              <option value="plancherel_recursive" data-i18n="modelPlancherel">Plancherel recursive</option>
+            </select>
+          </label>
+          <label>
+            <span>theta</span>
+            <input id="theta" type="number" min="0.001" step="0.1" value="2" />
+          </label>
+          <label>
+            <span>n</span>
+            <input id="n" type="number" min="1" step="1" value="5000" />
+          </label>
+          <label>
+            <span>seed</span>
+            <input id="seed" type="number" step="1" value="2026" />
+          </label>
+          <label>
+            <span data-i18n="drawLimit">Draw limit</span>
+            <input id="draw-limit" type="number" min="0" step="1000" value="50000" />
+          </label>
+          <button id="generate-button" type="button" class="primary" data-i18n="generate">Generate</button>
+        </form>
+        <div class="controls secondary-controls">
+          <label>
+            <span data-i18n="simulationSamples">Simulation samples</span>
+            <input id="samples" type="number" min="1" step="1" value="40" />
+          </label>
+          <button id="simulate-button" type="button" data-i18n="simulate">Simulate</button>
+          <button id="export-json" type="button" data-i18n="exportJson">Export JSON</button>
+          <button id="export-csv" type="button" data-i18n="exportCsv">Export CSV</button>
+        </div>
+        <div id="performance-note" class="performance-note"></div>
+      </section>
+      <section class="metrics-grid" id="metrics-grid"></section>
+
+      <section class="workspace">
+        <section class="panel tree-panel">
+          <div class="panel-title">
+            <h2 data-i18n="treePlot">Tree plot</h2>
+            <span id="draw-note"></span>
+          </div>
+          <div class="tree-toolbar">
+            <span data-i18n="treeHelp">Mouse wheel zooms, drag pans, double-click resets</span>
+            <div class="tree-actions">
+              <label class="layout-control">
+                <span data-i18n="layout">Layout</span>
+                <select id="tree-layout">
+                  <option value="centered-upward" data-i18n="layoutCentered">Centered upward</option>
+                  <option value="mass-upward" data-i18n="layoutMass">Subtree-mass upward</option>
+                  <option value="left-upward" data-i18n="layoutLeft">Level left-aligned</option>
+                  <option value="circular" data-i18n="layoutCircular">Circular</option>
+                  <option value="log-circular" data-i18n="layoutLogCircular">Log circular</option>
+                </select>
+              </label>
+              <label class="node-search">
+                <span data-i18n="nodeSearch">Node id</span>
+                <input id="node-search-id" type="number" min="0" step="1" placeholder="0" />
+              </label>
+              <button id="locate-node" type="button" data-i18n="locateNode">Locate</button>
+              <button id="tree-reset-view" type="button" data-i18n="resetView">Reset view</button>
+              <button id="export-tree-view-png" type="button" data-i18n="exportCurrentPng">Export current PNG</button>
+              <button id="export-tree-full-png" type="button" data-i18n="exportFullPng">Export full-tree PNG</button>
+              <button id="export-tree-svg" type="button" data-i18n="exportSvg">Export SVG</button>
+            </div>
+          </div>
+          <div class="tree-highlight-panel">
+            <label>
+              <span data-i18n="treeHighlightMode">Highlight</span>
+              <select id="tree-highlight-mode">
+                <option value="none" data-i18n="treeHighlightNone">None</option>
+                <option value="root_path" data-i18n="treeHighlightRootPath">Root path</option>
+                <option value="selected_subtree" data-i18n="treeHighlightSelectedSubtree">Selected subtree</option>
+                <option value="leaves" data-i18n="treeHighlightLeaves">Leaves</option>
+                <option value="degree_eq" data-i18n="treeHighlightDegreeEquals">Degree = value</option>
+                <option value="degree_ge" data-i18n="treeHighlightDegreeAtLeast">Degree >= value</option>
+                <option value="depth_eq" data-i18n="treeHighlightDepthEquals">Depth = value</option>
+                <option value="subtree_eq" data-i18n="treeHighlightSubtreeEquals">Subtree size = value</option>
+                <option value="subtree_ge" data-i18n="treeHighlightSubtreeAtLeast">Subtree size >= value</option>
+              </select>
+            </label>
+            <label>
+              <span data-i18n="treeHighlightValue">Value</span>
+              <input id="tree-highlight-value" type="number" min="0" step="1" placeholder="3" />
+            </label>
+            <button id="tree-highlight-apply" type="button" data-i18n="treeHighlightApply">Apply</button>
+            <button id="tree-highlight-clear" type="button" data-i18n="treeHighlightClear">Clear</button>
+            <span id="tree-highlight-note"></span>
+          </div>
+          <canvas id="tree-canvas"></canvas>
+          <div id="node-inspector" class="node-inspector">
+            <div class="inspector-empty" data-i18n="nodeInspectorEmpty">Click a node in the tree plot to inspect its subtree</div>
+          </div>
+        </section>
+
+        <section class="panel theory-panel">
+          <div class="panel-title">
+            <h2 data-i18n="theoryComparison">Theory comparison</h2>
+            <span id="theta-label"></span>
+          </div>
+          <div id="theory-values" class="theory-values"></div>
+          <canvas id="simulation-canvas" class="small-chart"></canvas>
+        </section>
+      </section>
+
+      <section class="charts-grid">
+        <section class="panel">
+          <div class="panel-title"><h2 data-i18n="chartProfile">Profile</h2></div>
+          <canvas id="profile-chart" class="small-chart"></canvas>
+        </section>
+        <section class="panel">
+          <div class="panel-title"><h2 data-i18n="chartDegree">Degree</h2></div>
+          <canvas id="degree-chart" class="small-chart"></canvas>
+        </section>
+        <section class="panel">
+          <div class="panel-title"><h2 data-i18n="chartSubtreeTopCounts">Subtree size top counts</h2></div>
+          <canvas id="depth-chart" class="small-chart"></canvas>
+        </section>
+      </section>
+
+      <section class="panel scan-panel">
+        <div class="panel-title">
+          <h2 data-i18n="parameterScan">Parameter scan</h2>
+          <span id="scan-note" data-i18n="scanNoteDefault">Enter comma-separated lists to scan theta, n, or a two-dimensional grid</span>
+        </div>
+        <div class="scan-controls">
+          <fieldset class="scan-models">
+            <legend data-i18n="scanModels">Models</legend>
+            <label>
+              <input type="checkbox" name="scan-model" value="ewens" checked />
+              <span data-i18n="modelEwens">Ewens recursive</span>
+            </label>
+            <label>
+              <input type="checkbox" name="scan-model" value="uniform_recursive" />
+              <span data-i18n="modelUniform">Uniform recursive</span>
+            </label>
+            <label>
+              <input type="checkbox" name="scan-model" value="plancherel_recursive" />
+              <span data-i18n="modelPlancherel">Plancherel recursive</span>
+            </label>
+          </fieldset>
+          <label>
+            <span data-i18n="thetaList">theta list</span>
+            <input id="scan-theta-values" type="text" value="2" />
+          </label>
+          <label>
+            <span data-i18n="nList">n list</span>
+            <input id="scan-n-values" type="text" value="1000,5000,10000" />
+          </label>
+          <label>
+            <span data-i18n="samplesPerGroup">Samples per group</span>
+            <input id="scan-samples" type="number" min="1" step="1" value="10" />
+          </label>
+          <button id="scan-button" type="button" class="primary" data-i18n="runScan">Run scan</button>
+          <button id="export-scan-csv" type="button" data-i18n="exportScanCsv">Export scan CSV</button>
+        </div>
+        <div id="scan-analysis" class="scan-analysis"></div>
+        <div class="scan-grid">
+          <div class="chart-card">
+            <div class="chart-title">
+              <strong data-i18n="scanChartTitle">Mean height offset by theta</strong>
+              <label class="scan-metric-control">
+                <span data-i18n="scanMetric">Metric</span>
+                <select id="scan-metric">
+                  <option value="offset" data-i18n="scanMetricOffset">Mean offset</option>
+                  <option value="height" data-i18n="scanMetricHeight">Mean height</option>
+                  <option value="std" data-i18n="scanMetricStd">Height std</option>
+                  <option value="elapsed" data-i18n="scanMetricElapsed">Mean ms</option>
+                </select>
+              </label>
+            </div>
+            <div class="chart-subtitle" data-i18n="scanChartSubtitle">y = height - Ewens reference center</div>
+            <canvas id="scan-chart" class="small-chart"></canvas>
+          </div>
+          <div class="table-wrap scan-table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>model</th>
+                  <th>theta</th>
+                  <th>n</th>
+                  <th>samples</th>
+                  <th>mean height</th>
+                  <th>std height</th>
+                  <th>mean offset</th>
+                  <th>offset q25...q75</th>
+                  <th>mean ms</th>
+                  <th>total ms</th>
+                </tr>
+              </thead>
+              <tbody id="scan-group-table"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="table-wrap scan-row-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>model</th>
+                <th>theta</th>
+                <th>n</th>
+                <th>#</th>
+                <th>seed</th>
+                <th>height</th>
+                <th>height - second</th>
+                <th>elapsed ms</th>
+              </tr>
+            </thead>
+            <tbody id="scan-row-table"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel history-panel">
+        <div class="panel-title">
+          <h2 data-i18n="experimentHistory">Experiment history</h2>
+          <span id="history-note" data-i18n="historyEmpty">No experiments recorded yet</span>
+        </div>
+        <div class="history-actions">
+          <button id="export-bundle" type="button" data-i18n="exportBundle">Export bundle</button>
+          <button id="export-history" type="button" data-i18n="exportHistory">Export history</button>
+          <button id="clear-history" type="button" data-i18n="clearHistory">Clear history</button>
+        </div>
+        <div id="history-list" class="history-list"></div>
+      </section>
+
+      <section class="panel data-panel">
+        <div class="panel-title">
+          <h2 data-i18n="nodeData">Node data</h2>
+          <span id="table-note"></span>
+        </div>
+        <div class="node-data-lookup">
+          <label>
+            <span data-i18n="nodeDataLookup">Node id</span>
+            <input id="node-data-id" type="number" min="0" step="1" placeholder="0" />
+          </label>
+          <button id="node-data-show" type="button" data-i18n="nodeDataShow">Show node</button>
+          <button id="node-data-locate" type="button" data-i18n="locateNode">Locate</button>
+        </div>
+        <div id="node-data-details" class="node-data-details"></div>
+      </section>
+      </section>
+
+      <section id="smalln-view" class="tab-view">
+        <section class="panel smalln-panel">
+          <div class="panel-title">
+            <h2 data-i18n="smallNTitle">Small-n Explorer</h2>
+            <span id="smalln-note" data-i18n="smallNNote">Enumerate recursive trees and compare model probabilities</span>
+          </div>
+          <div class="smalln-controls">
+            <div class="smalln-control-row smalln-primary-row">
+              <label>
+                <span>n</span>
+                <input id="smalln-n" type="number" min="1" max="9" step="1" value="5" />
+              </label>
+              <label>
+                <span>theta</span>
+                <input id="smalln-theta" type="number" min="0.001" step="0.1" value="2" />
+              </label>
+              <label class="smalln-sort-control">
+                <span data-i18n="smallNSort">Sort</span>
+                <select id="smalln-sort">
+                  <option value="rank" data-i18n="sortRank">Enumeration order</option>
+                  <option value="ewens_desc" data-i18n="sortEwensDesc">Ewens probability</option>
+                  <option value="uniform_desc" data-i18n="sortUniformDesc">Uniform probability</option>
+                  <option value="plancherel_desc" data-i18n="sortPlancherelDesc">Plancherel probability</option>
+                  <option value="height_desc" data-i18n="sortHeightDesc">Height high to low</option>
+                  <option value="height_asc" data-i18n="sortHeightAsc">Height low to high</option>
+                  <option value="leaves_desc" data-i18n="sortLeavesDesc">Leaves high to low</option>
+                  <option value="root_degree_desc" data-i18n="sortRootDegreeDesc">Root degree high to low</option>
+                  <option value="ewens_uniform_desc" data-i18n="sortEwensUniformDesc">Ewens / Uniform high to low</option>
+                  <option value="plancherel_uniform_desc" data-i18n="sortPlancherelUniformDesc">Plancherel / Uniform high to low</option>
+                  <option value="plancherel_minus_ewens_desc" data-i18n="sortPlancherelMinusEwensDesc">Plancherel - Ewens high to low</option>
+                </select>
+              </label>
+              <div class="smalln-run-actions">
+                <button id="smalln-run" type="button" class="primary" data-i18n="smallNRun">Explore</button>
+                <button id="smalln-export" type="button" data-i18n="smallNExport">Export CSV</button>
+              </div>
+            </div>
+            <div class="smalln-control-row smalln-filter-row">
+              <label>
+                <span data-i18n="smallNFilterHeight">Height</span>
+                <input id="smalln-filter-height" type="number" min="0" step="1" placeholder="any" />
+              </label>
+              <label>
+                <span data-i18n="smallNFilterRootDegree">Root degree</span>
+                <input id="smalln-filter-root-degree" type="number" min="0" step="1" placeholder="any" />
+              </label>
+              <label>
+                <span data-i18n="smallNSearchType">Search</span>
+                <select id="smalln-search-type">
+                  <option value="parent_code" data-i18n="searchParentCode">parent code</option>
+                  <option value="rank" data-i18n="searchRank">rank</option>
+                  <option value="shape" data-i18n="searchShape">shape</option>
+                  <option value="root_partition" data-i18n="searchRootPartition">root partition</option>
+                </select>
+              </label>
+              <label class="smalln-search-value">
+                <span id="smalln-search-value-label">Parent code</span>
+                <input id="smalln-locate-code" type="text" placeholder="0,0,1" />
+              </label>
+              <div class="smalln-filter-actions">
+                <button id="smalln-locate" type="button" data-i18n="smallNLocate">Locate</button>
+                <button id="smalln-clear-filters" type="button" data-i18n="smallNClearFilters">Clear filters</button>
+              </div>
+            </div>
+          </div>
+          <div id="smalln-summary" class="scan-analysis"></div>
+          <div class="smalln-analysis-grid">
+            <section class="smalln-analysis-block">
+              <div class="smalln-analysis-title">
+                <h3 data-i18n="smallNDistribution">Distribution</h3>
+                <div class="smalln-analysis-controls">
+                  <label>
+                    <span data-i18n="smallNMetric">Metric</span>
+                    <select id="smalln-dist-metric">
+                      <option value="height" data-i18n="metricHeight">height</option>
+                      <option value="leaves" data-i18n="metricLeaves">leaves</option>
+                      <option value="root_degree" data-i18n="metricRootDegree">root degree</option>
+                      <option value="max_degree" data-i18n="metricMaxDegree">max degree</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span data-i18n="model">Model</span>
+                    <select id="smalln-dist-model">
+                      <option value="uniform_recursive" data-i18n="modelUniform">Uniform recursive</option>
+                      <option value="ewens" data-i18n="modelEwens">Ewens recursive</option>
+                      <option value="plancherel_recursive" data-i18n="modelPlancherel">Plancherel recursive</option>
+                      <option value="count" data-i18n="smallNCountWeight">count</option>
+                    </select>
+                  </label>
+                </div>
+              </div>
+              <canvas id="smalln-distribution-canvas" class="small-chart"></canvas>
+            </section>
+            <section class="smalln-analysis-block">
+              <div class="smalln-analysis-title">
+                <h3 data-i18n="smallNShapeGroups">Shape groups</h3>
+                <span id="smalln-shape-note"></span>
+              </div>
+              <div class="table-wrap smalln-shape-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>shape</th>
+                      <th>count</th>
+                      <th>rep #</th>
+                      <th>height</th>
+                      <th>Ewens p</th>
+                      <th>Uniform p</th>
+                      <th>Plancherel p</th>
+                      <th>E/U</th>
+                      <th>P/U</th>
+                      <th>P-E</th>
+                    </tr>
+                  </thead>
+                  <tbody id="smalln-shape-table"></tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+          <div class="smalln-grid">
+            <div class="smalln-table-panel">
+              <div class="smalln-preview-title smalln-table-title">
+                <h3 data-i18n="smallNTreeDetails">Tree details</h3>
+                <span id="smalln-table-status"></span>
+              </div>
+              <div class="table-wrap smalln-table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>parent code</th>
+                      <th>height</th>
+                      <th>root degree</th>
+                      <th>leaves</th>
+                      <th>Ewens p</th>
+                      <th>Uniform p</th>
+                      <th>Plancherel p</th>
+                      <th>E/U</th>
+                      <th>P/U</th>
+                      <th>P-E</th>
+                      <th>root partition</th>
+                    </tr>
+                  </thead>
+                  <tbody id="smalln-table"></tbody>
+                </table>
+              </div>
+              <div class="smalln-table-actions">
+                <div>
+                  <button id="smalln-load-more" type="button" data-i18n="smallNTableLoadMore">Load 2,000 more</button>
+                  <button id="smalln-show-all" type="button" data-i18n="smallNTableShowAll">Show all</button>
+                </div>
+              </div>
+            </div>
+            <aside class="smalln-preview">
+              <div class="smalln-preview-title">
+                <h3 data-i18n="smallNPreview">Tree preview</h3>
+                <span id="smalln-preview-note"></span>
+              </div>
+              <canvas id="smalln-preview-canvas"></canvas>
+              <div id="smalln-preview-details" class="smalln-preview-details"></div>
+            </aside>
+          </div>
+          <div class="smalln-analysis-grid smalln-final-grid">
+            <section class="smalln-analysis-block">
+              <div class="smalln-analysis-title">
+                <h3 data-i18n="smallNTopK">Top-k probability mass</h3>
+                <div class="smalln-analysis-controls">
+                  <label>
+                    <span data-i18n="smallNTopKTarget">Target</span>
+                    <select id="smalln-topk-target">
+                      <option value="shape" data-i18n="smallNTopKShape">shapes</option>
+                      <option value="tree" data-i18n="smallNTopKTree">trees</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span data-i18n="smallNTopKModel">Model</span>
+                    <select id="smalln-topk-model">
+                      <option value="uniform_recursive" data-i18n="modelUniform">Uniform recursive</option>
+                      <option value="ewens" data-i18n="modelEwens">Ewens recursive</option>
+                      <option value="plancherel_recursive" data-i18n="modelPlancherel">Plancherel recursive</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span data-i18n="smallNTopKValue">k</span>
+                    <select id="smalln-topk-value">
+                      <option value="5">5</option>
+                      <option value="10" selected>10</option>
+                      <option value="20">20</option>
+                    </select>
+                  </label>
+                </div>
+              </div>
+              <div id="smalln-topk-summary" class="smalln-topk-summary"></div>
+              <div class="table-wrap smalln-topk-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>item</th>
+                      <th>p</th>
+                      <th>cumulative</th>
+                    </tr>
+                  </thead>
+                  <tbody id="smalln-topk-table"></tbody>
+                </table>
+              </div>
+            </section>
+            <section class="smalln-analysis-block">
+              <div class="smalln-analysis-title">
+                <h3 data-i18n="smallNDifference">Model difference</h3>
+                <div class="smalln-analysis-controls">
+                  <label>
+                    <span data-i18n="smallNTopKTarget">Target</span>
+                    <select id="smalln-diff-target">
+                      <option value="shape" data-i18n="smallNTopKShape">shapes</option>
+                      <option value="tree" data-i18n="smallNTopKTree">trees</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span data-i18n="smallNDiffA">A</span>
+                    <select id="smalln-diff-model-a">
+                      <option value="plancherel_recursive" data-i18n="modelPlancherel">Plancherel recursive</option>
+                      <option value="ewens" data-i18n="modelEwens">Ewens recursive</option>
+                      <option value="uniform_recursive" data-i18n="modelUniform">Uniform recursive</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span data-i18n="smallNDiffB">B</span>
+                    <select id="smalln-diff-model-b">
+                      <option value="ewens" data-i18n="modelEwens">Ewens recursive</option>
+                      <option value="uniform_recursive" data-i18n="modelUniform">Uniform recursive</option>
+                      <option value="plancherel_recursive" data-i18n="modelPlancherel">Plancherel recursive</option>
+                    </select>
+                  </label>
+                </div>
+              </div>
+              <div id="smalln-diff-summary" class="smalln-topk-summary"></div>
+              <div class="table-wrap smalln-topk-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>item</th>
+                      <th>A p</th>
+                      <th>B p</th>
+                      <th>A - B</th>
+                    </tr>
+                  </thead>
+                  <tbody id="smalln-diff-table"></tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+        </section>
+      </section>
+    </main>
+    <script src="/static/app.js?v=20260605-smalln-table"></script>
+  </body>
+</html>

@@ -1,0 +1,20 @@
+{
+  "name": "tree_page",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": ".\\.venv\\Scripts\\python.exe -m uvicorn ewens_app.main:app --host 127.0.0.1 --port 8765",
+    "test": ".\\.venv\\Scripts\\python.exe -m pytest -q && node --check ewens_app\\static\\app.js",
+    "test:py": ".\\.venv\\Scripts\\python.exe -m pytest -q",
+    "test:js": "node --check ewens_app\\static\\app.js",
+    "test:e2e": "node tests\\frontend_smoke.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "playwright": "^1.60.0"
+  }
+}
