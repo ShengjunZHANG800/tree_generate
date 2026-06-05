@@ -69,6 +69,14 @@ async function main() {
     await page.fill("#tree-highlight-value", "3");
     await page.click("#tree-highlight-apply");
     await page.waitForFunction(() => document.querySelector("#tree-highlight-note")?.textContent.includes("degree >= 3"), null, { timeout: 10000 });
+    await page.selectOption("#tree-highlight-mode", "leaves");
+    await page.click("#tree-highlight-apply");
+    await page.waitForFunction(() => document.querySelector("#tree-highlight-note")?.textContent.includes("Leaves"), null, { timeout: 10000 });
+    await page.selectOption("#tree-highlight-mode", "subtree_ge");
+    await page.fill("#tree-highlight-value", "3");
+    await page.waitForFunction(() => document.querySelector("#tree-highlight-note")?.textContent.includes("No structural highlight"), null, { timeout: 10000 });
+    await page.click("#tree-highlight-apply");
+    await page.waitForFunction(() => document.querySelector("#tree-highlight-note")?.textContent.includes("subtree size >= 3"), null, { timeout: 10000 });
     const profileBox = await page.locator("#profile-chart").boundingBox();
     await page.locator("#profile-chart").click({
       position: { x: profileBox.width * 0.28, y: profileBox.height * 0.5 },

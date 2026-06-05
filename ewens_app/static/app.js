@@ -1285,7 +1285,7 @@ function parseTreeHighlightValue() {
 function updateTreeHighlightNote() {
   const note = el("tree-highlight-note");
   if (!note) return;
-  if (!state.treeHighlightSet?.size) {
+  if (!state.treeHighlightSet) {
     note.textContent = t("treeHighlightNoteNone");
     return;
   }
@@ -1304,6 +1304,16 @@ function updateTreeHighlightControls() {
     valueInput.value = state.treeHighlightValue ?? "";
   }
   updateTreeHighlightNote();
+}
+
+function clearAppliedTreeHighlight(options = {}) {
+  state.treeHighlightSet = null;
+  state.treeHighlightLabel = "";
+  updateTreeHighlightNote();
+  if (options.redraw && state.lastSample) {
+    drawTree(state.lastSample);
+    renderCharts(state.lastSample);
+  }
 }
 
 function computeTreeHighlight(mode = state.treeHighlightMode, value = state.treeHighlightValue) {
@@ -1352,7 +1362,7 @@ function applyTreeHighlight(mode = state.treeHighlightMode, value = state.treeHi
     renderCharts(state.lastSample);
   }
   if (options.status !== false) {
-    if (state.treeHighlightSet?.size) {
+    if (state.treeHighlightSet) {
       setStatusMessage("statusTreeHighlightApplied", {
         count: fmt.format(state.treeHighlightSet.size),
         label: state.treeHighlightLabel,
@@ -1403,7 +1413,7 @@ function selectNode(nodeId) {
   state.selectedNodeId = nodeId;
   state.selectedSubtree = computeSubtree(render.children, nodeId);
   showNodeDataById(nodeId, { silent: true });
-  if (["root_path", "selected_subtree"].includes(state.treeHighlightMode)) {
+  if (state.treeHighlightSet && ["root_path", "selected_subtree"].includes(state.treeHighlightMode)) {
     applyTreeHighlight(state.treeHighlightMode, state.treeHighlightValue, { status: false });
   }
   return true;
@@ -1770,20 +1780,21 @@ function drawBarChart(canvasId, rows, xField, yField, color = "#007f89", options
 }
 
 function renderCharts(data) {
+  const activeHighlightMode = state.treeHighlightSet ? state.treeHighlightMode : null;
   drawBarChart("profile-chart", data.summary.profile, "depth", "count", "#007f89", {
     metric: "depth",
     chartLabel: t("chartProfile"),
-    selectedValue: state.treeHighlightMode === "depth_eq" ? Number.parseInt(state.treeHighlightValue, 10) : null,
+    selectedValue: activeHighlightMode === "depth_eq" ? Number.parseInt(state.treeHighlightValue, 10) : null,
   });
   drawBarChart("degree-chart", data.summary.degree_distribution, "value", "count", "#2457a6", {
     metric: "degree",
     chartLabel: t("chartDegree"),
-    selectedValue: state.treeHighlightMode === "degree_eq" ? Number.parseInt(state.treeHighlightValue, 10) : null,
+    selectedValue: activeHighlightMode === "degree_eq" ? Number.parseInt(state.treeHighlightValue, 10) : null,
   });
   drawBarChart("depth-chart", data.summary.subtree_size_top_counts || [], "value", "count", "#2f8c58", {
     metric: "subtree_size",
     chartLabel: t("chartSubtreeTopCounts"),
-    selectedValue: state.treeHighlightMode === "subtree_eq" ? Number.parseInt(state.treeHighlightValue, 10) : null,
+    selectedValue: activeHighlightMode === "subtree_eq" ? Number.parseInt(state.treeHighlightValue, 10) : null,
   });
 }
 
@@ -3788,10 +3799,12 @@ async function init() {
   el("tree-highlight-mode").addEventListener("change", (event) => {
     state.treeHighlightMode = event.target.value;
     if (!treeHighlightRequiresValue(state.treeHighlightMode)) state.treeHighlightValue = "";
+    clearAppliedTreeHighlight({ redraw: true });
     updateTreeHighlightControls();
   });
   el("tree-highlight-value").addEventListener("input", (event) => {
     state.treeHighlightValue = event.target.value;
+    clearAppliedTreeHighlight({ redraw: true });
   });
   el("tree-highlight-apply").addEventListener("click", applyTreeHighlightFromControls);
   el("tree-highlight-clear").addEventListener("click", clearTreeHighlight);
