@@ -45,3 +45,14 @@ Render settings if creating a Web Service manually:
 - Build Command: `pip install -r requirements.txt`
 - Start Command: `uvicorn ewens_app.main:app --host 0.0.0.0 --port $PORT`
 - Health Check Path: `/api/health`
+
+## Automatic Render Deploys
+
+`render.yaml` enables Render auto deploys for Blueprint-created services. If the existing Render service does not auto-deploy after pushes to `main`, add a deploy hook fallback:
+
+1. In the Render service, open **Settings** and copy the **Deploy Hook** URL.
+2. In GitHub, open **Settings > Secrets and variables > Actions**.
+3. Add a repository secret named `RENDER_DEPLOY_HOOK_URL`.
+4. Paste the Render deploy hook URL as the secret value.
+
+After that, `.github/workflows/render-deploy.yml` runs on every push to `main`, verifies the API and frontend JavaScript syntax, then triggers the Render deploy hook.
