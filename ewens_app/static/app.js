@@ -54,7 +54,9 @@ const SMALL_N_STATE_STORAGE_KEY = "ewens-tree-lab-small-n-state-v1";
 const I18N = {
   en: {
     subtitle: "Second-order height comparison, random sampling, statistics, and visualization",
-    sourceCode: "trees code",
+    sourceCode: "GitHub repository",
+    downloadSource: "Download source ZIP",
+    originalSource: "Original source",
     tabLab: "Tree Lab",
     tabSmallN: "Small-n Explorer",
     model: "Model",
@@ -302,7 +304,9 @@ const I18N = {
   },
   zh: {
     subtitle: "高度二阶项、随机采样、统计与可视化",
-    sourceCode: "trees 代码",
+    sourceCode: "GitHub 仓库",
+    downloadSource: "下载源码 ZIP",
+    originalSource: "原始来源",
     tabLab: "树实验",
     tabSmallN: "小 n 枚举",
     model: "模型",
